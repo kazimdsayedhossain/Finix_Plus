@@ -1707,14 +1707,18 @@ ApplicationWindow {
         }
     }
 
+
+
+
     // ========== SCAN PROGRESS DIALOG ==========
-    Dialog {
+    // ========== SCAN PROGRESS DIALOG ==========
+    Popup {
         id: scanProgressDialog
-        title: qsTr("Scanning Library")
         modal: true
-        anchors.centerIn: parent
+        anchors.centerIn: Overlay.overlay
         width: 400
-        height: 150
+        height: 200
+        closePolicy: Popup.NoAutoClose
 
         property int currentValue: 0
         property int totalValue: 100
@@ -1728,7 +1732,15 @@ ApplicationWindow {
 
         ColumnLayout {
             anchors.fill: parent
+            anchors.margins: 20
             spacing: 15
+
+            Label {
+                text: qsTr("Scanning Library")
+                font.pixelSize: 18
+                font.bold: true
+                color: root.textColor
+            }
 
             Label {
                 Layout.fillWidth: true
@@ -1740,7 +1752,7 @@ ApplicationWindow {
             ProgressBar {
                 Layout.fillWidth: true
                 from: 0
-                to: scanProgressDialog.totalValue
+                to: scanProgressDialog.totalValue > 0 ? scanProgressDialog.totalValue : 100
                 value: scanProgressDialog.currentValue
 
                 background: Rectangle {
@@ -1770,14 +1782,40 @@ ApplicationWindow {
                 color: root.textSecondaryColor
                 horizontalAlignment: Text.AlignRight
             }
-        }
 
-        onAccepted: {
-            close()
-        }
+            Item {
+                Layout.fillHeight: true
+            }
 
-        standardButtons: Dialog.Close
+            Button {
+                Layout.alignment: Qt.AlignRight
+                text: qsTr("Close")
+                implicitWidth: 100
+                implicitHeight: 36
+
+                background: Rectangle {
+                    radius: 8
+                    color: parent.pressed ? root.primaryColor : root.surfaceLightColor
+                    border.color: root.primaryColor
+                    border.width: 1
+                }
+
+                contentItem: Text {
+                    text: parent.text
+                    color: root.textColor
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                onClicked: {
+                    scanProgressDialog.close()
+                }
+            }
+        }
     }
+
+
+
 
     // ========== ERROR NOTIFICATION ==========
     Rectangle {
