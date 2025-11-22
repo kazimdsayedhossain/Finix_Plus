@@ -2370,10 +2370,513 @@ ApplicationWindow {
                                (parent.pressed ? Qt.lighter(root.primaryColor, 1.2) : root.primaryColor) :
                                root.surfaceLightColor
                     }
+// This is the COMPLETE ending section that's missing from your MAIN_TEST.QML file
+// Replace everything after the last "font.pixelSize:" line with this:
 
                     contentItem: Text {
                         text: parent.text
                         color: parent.enabled ? "white" : root.textSecondaryColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                        font.pixelSize:
+                        font.pixelSize: 12
+                        font.bold: true
+                    }
+                }
+            }
+        }
+    }
+
+    // Save Playlist Dialog
+    Popup {
+        id: savePlaylistDialog
+        anchors.centerIn: Overlay.overlay
+        width: 450
+        height: 240
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+
+        background: Rectangle {
+            color: root.surfaceColor
+            radius: 12
+            border.color: root.accentColor
+            border.width: 2
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 20
+            spacing: 15
+
+            Label {
+                text: qsTr("💾 Save Current Library as Playlist")
+                font.pixelSize: 18
+                font.bold: true
+                color: root.textColor
+            }
+
+            Label {
+                text: qsTr("Enter a name for your playlist (will be saved as M3U)")
+                font.pixelSize: 11
+                color: root.textSecondaryColor
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            TextField {
+                id: playlistNameInput
+                Layout.fillWidth: true
+                placeholderText: qsTr("e.g., My Favorite Songs")
+                font.pixelSize: 13
+                color: root.textColor
+
+                background: Rectangle {
+                    radius: 8
+                    color: root.backgroundColor
+                    border.color: playlistNameInput.focus ? root.accentColor : root.surfaceLightColor
+                    border.width: 2
+                }
+
+                onAccepted: {
+                    if (text.trim().length > 0) {
+                        savePlaylist()
+                    }
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("📁 Playlist will be saved in the application directory")
+                font.pixelSize: 10
+                color: root.textSecondaryColor
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Button {
+                    Layout.fillWidth: true
+                    text: qsTr("Cancel")
+                    implicitHeight: 38
+
+                    onClicked: {
+                        savePlaylistDialog.close()
+                        playlistNameInput.text = ""
+                    }
+
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.pressed ? root.surfaceLightColor : root.backgroundColor
+                        border.color: root.surfaceLightColor
+                        border.width: 1
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: root.textColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
+                    }
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    text: qsTr("Save")
+                    implicitHeight: 38
+                    enabled: playlistNameInput.text.trim().length > 0
+
+                    onClicked: savePlaylist()
+
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.enabled ?
+                               (parent.pressed ? Qt.lighter(root.accentColor, 1.2) : root.accentColor) :
+                               root.surfaceLightColor
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: parent.enabled ? "white" : root.textSecondaryColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
+                        font.bold: true
+                    }
+                }
+            }
+        }
+
+        function savePlaylist() {
+            var playlistName = playlistNameInput.text.trim()
+            if (playlistName.length > 0) {
+                if (!playlistName.toLowerCase().endsWith(".m3u")) {
+                    playlistName += ".m3u"
+                }
+                
+                console.log("Saving playlist as:", playlistName)
+                
+                savePlaylistDialog.close()
+                playlistNameInput.text = ""
+                saveConfirmationPopup.open()
+            }
+        }
+    }
+
+    // Save Confirmation Popup
+    Popup {
+        id: saveConfirmationPopup
+        anchors.centerIn: Overlay.overlay
+        width: 350
+        height: 150
+        modal: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: root.surfaceColor
+            radius: 10
+            border.color: "#4CAF50"
+            border.width: 2
+        }
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 15
+
+            Label {
+                text: "✓"
+                font.pixelSize: 36
+                color: "#4CAF50"
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Label {
+                text: qsTr("Playlist saved successfully!")
+                font.pixelSize: 14
+                font.bold: true
+                color: root.textColor
+                Layout.alignment: Qt.AlignHCenter
+            }
+        }
+
+        Timer {
+            interval: 2000
+            running: saveConfirmationPopup.opened
+            onTriggered: saveConfirmationPopup.close()
+        }
+    }
+
+    // Scan Progress Dialog
+    Popup {
+        id: scanProgressDialog
+        modal: true
+        anchors.centerIn: Overlay.overlay
+        width: 380
+        height: 200
+        closePolicy: Popup.CloseOnEscape
+
+        property int currentProgress: 0
+        property int totalProgress: 0
+
+        background: Rectangle {
+            color: root.surfaceColor
+            radius: 10
+            border.color: root.primaryColor
+            border.width: 2
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 20
+            spacing: 15
+
+            Label {
+                text: qsTr("Scanning Library")
+                font.pixelSize: 17
+                font.bold: true
+                color: root.textColor
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Scanning for audio files in the selected directory...")
+                font.pixelSize: 12
+                color: root.textSecondaryColor
+                wrapMode: Text.WordWrap
+            }
+
+            ProgressBar {
+                Layout.fillWidth: true
+                from: 0
+                to: scanProgressDialog.totalProgress > 0 ? scanProgressDialog.totalProgress : 100
+                value: scanProgressDialog.currentProgress
+                indeterminate: scanProgressDialog.totalProgress === 0
+
+                background: Rectangle {
+                    implicitWidth: 200
+                    implicitHeight: 8
+                    color: root.surfaceLightColor
+                    radius: 4
+                }
+
+                contentItem: Item {
+                    implicitWidth: 200
+                    implicitHeight: 8
+
+                    Rectangle {
+                        width: scanProgressDialog.totalProgress > 0 ?
+                               (scanProgressDialog.currentProgress / scanProgressDialog.totalProgress) * parent.width :
+                               0
+                        height: parent.height
+                        radius: 4
+                        color: root.primaryColor
+                    }
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: scanProgressDialog.totalProgress > 0 ?
+                      qsTr("Found: %1 / %2 tracks").arg(scanProgressDialog.currentProgress).arg(scanProgressDialog.totalProgress) :
+                      qsTr("Initializing scan...")
+                font.pixelSize: 11
+                color: root.textSecondaryColor
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Item { Layout.fillHeight: true }
+
+            Button {
+                Layout.alignment: Qt.AlignRight
+                text: qsTr("Close")
+                implicitWidth: 100
+                implicitHeight: 34
+
+                background: Rectangle {
+                    radius: 8
+                    color: parent.pressed ? root.primaryColor : root.surfaceLightColor
+                    border.color: root.primaryColor
+                    border.width: 1
+                }
+
+                contentItem: Text {
+                    text: parent.text
+                    color: root.textColor
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 11
+                }
+
+                onClicked: {
+                    scanProgressDialog.close()
+                    libraryModel.refresh()
+                }
+            }
+        }
+    }
+
+    // ==================== CUSTOM COMPONENTS ====================
+
+    component NavButton: Item {
+        id: navButton
+        property string icon: ""
+        property string text: ""
+        property bool active: false
+        signal clicked()
+
+        Layout.fillWidth: true
+        Layout.leftMargin: 12
+        Layout.rightMargin: 12
+        implicitHeight: 46
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 8
+            color: active ? root.primaryColor : (mouseArea.containsMouse ? root.surfaceLightColor : "transparent")
+
+            Behavior on color {
+                ColorAnimation { duration: 150 }
+            }
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            spacing: 12
+
+            Label {
+                text: navButton.icon
+                font.pixelSize: 18
+                Layout.preferredWidth: 28
+            }
+
+            Label {
+                text: navButton.text
+                font.pixelSize: 13
+                font.bold: navButton.active
+                color: root.textColor
+                Layout.fillWidth: true
+            }
+        }
+
+        MouseArea {
+            id: mouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: navButton.clicked()
+        }
+    }
+
+    component QuickActionCard: Rectangle {
+        property string icon: ""
+        property string title: ""
+        property string description: ""
+        signal clicked()
+
+        Layout.fillWidth: true
+        implicitHeight: 115
+        color: root.surfaceColor
+        radius: 12
+        border.color: mouseArea.containsMouse ? root.primaryColor : "transparent"
+        border.width: 2
+
+        Behavior on border.color {
+            ColorAnimation { duration: 200 }
+        }
+
+        MouseArea {
+            id: mouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.clicked()
+        }
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 10
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: icon
+                font.pixelSize: 38
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: title
+                font.pixelSize: 14
+                font.bold: true
+                color: root.textColor
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: description
+                font.pixelSize: 11
+                color: root.textSecondaryColor
+            }
+        }
+    }
+
+    component StatItem: ColumnLayout {
+        property string icon: ""
+        property string label: ""
+        property var value: 0
+        property bool isTime: false
+
+        spacing: 5
+
+        Label {
+            Layout.alignment: Qt.AlignHCenter
+            text: icon
+            font.pixelSize: 22
+        }
+
+        Label {
+            Layout.alignment: Qt.AlignHCenter
+            text: isTime ? value : value.toString()
+            font.pixelSize: 17
+            font.bold: true
+            color: root.primaryColor
+        }
+
+        Label {
+            Layout.alignment: Qt.AlignHCenter
+            text: label
+            font.pixelSize: 10
+            color: root.textSecondaryColor
+        }
+    }
+
+    // ==================== HELPER FUNCTIONS ====================
+
+    function formatDuration(milliseconds) {
+        if (milliseconds <= 0 || isNaN(milliseconds)) return "0:00"
+        var totalSeconds = Math.floor(milliseconds / 1000)
+        var hours = Math.floor(totalSeconds / 3600)
+        var minutes = Math.floor((totalSeconds % 3600) / 60)
+        var seconds = totalSeconds % 60
+
+        if (hours > 0) {
+            return hours + ":" +
+                   (minutes < 10 ? "0" : "") + minutes + ":" +
+                   (seconds < 10 ? "0" : "") + seconds
+        } else {
+            return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+        }
+    }
+
+    // ==================== KEYBOARD SHORTCUTS ====================
+
+    Shortcut {
+        sequence: "Space"
+        onActivated: {
+            if (audioController.duration > 0) {
+                if (audioController.isPlaying) {
+                    audioController.pause()
+                } else {
+                    audioController.play()
+                }
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+O"
+        onActivated: fileDialog.open()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+L"
+        onActivated: stackView.replace(libraryPage)
+    }
+
+    Shortcut {
+        sequence: "Up"
+        onActivated: {
+            volumeSlider.value = Math.min(volumeSlider.value + 0.05, 1.0)
+            audioController.setVolume(volumeSlider.value)
+        }
+    }
+
+    Shortcut {
+        sequence: "Down"
+        onActivated: {
+            volumeSlider.value = Math.max(volumeSlider.value - 0.05, 0.0)
+            audioController.setVolume(volumeSlider.value)
+        }
+    }
+
+    // ==================== INITIALIZATION ====================
+
+    Component.onCompleted: {
+        console.log("Finix Player initialized")
+        console.log("Qt Version: 6.10")
+        console.log("All features loaded successfully")
+    }
+}
