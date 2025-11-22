@@ -24,6 +24,11 @@ MusicLibrary::~MusicLibrary()
     qDebug() << "MusicLibrary singleton destroyed";
 }
 
+void MusicLibrary::removeTrackByPath(const QString& path)
+{
+    removeTrack(path);  // Call the existing implementation
+}
+
 MusicLibrary& MusicLibrary::instance()
 {
     if (!s_instance) {
