@@ -1,5 +1,3 @@
-// AudioController.cpp - Complete implementation with working audio effects
-
 #include "AudioController.h"
 #include "AudioException.h"
 #include "AudioUtils.h"
@@ -20,8 +18,8 @@ AudioController::AudioController(QObject *parent)
     : QObject(parent)
     , m_player(new QMediaPlayer(this))
     , m_audioOutput(new QAudioOutput(this))
-    , m_queue(100)           // CircularBuffer with capacity 100
-    , m_albumArtCache(50)    // LRU Cache with capacity 50
+    , m_queue(100)
+    , m_albumArtCache(50)
 {
     // Setup audio output
     m_player->setAudioOutput(m_audioOutput);
@@ -29,10 +27,10 @@ AudioController::AudioController(QObject *parent)
 
     // Initialize fade timer
     m_fadeTimer = new QTimer(this);
-    m_fadeTimer->setInterval(50); // 50ms updates for smooth fade
+    m_fadeTimer->setInterval(50);
     connect(m_fadeTimer, &QTimer::timeout, this, [this]() {
         if (m_fadeProgress < 1.0) {
-            m_fadeProgress += 0.05; // Increase by 5% each tick (1 second total)
+            m_fadeProgress += 0.05;
             applyVolumeEffects();
         } else {
             m_fadeTimer->stop();
@@ -49,7 +47,7 @@ AudioController::AudioController(QObject *parent)
     connect(m_player, &QMediaPlayer::mediaStatusChanged, this, &AudioController::onMediaStatusChanged);
     connect(m_player, &QMediaPlayer::errorOccurred, this, &AudioController::onErrorOccurred);
 
-    qDebug() << "AudioController initialized with working audio effects";
+    qDebug() << "AudioController initialized successfully";
 }
 
 AudioController::~AudioController()
@@ -74,7 +72,6 @@ void AudioController::openFile(const QString &filePath)
             throw FileNotFoundException(filePath);
         }
 
-        // Check if format is supported
         QString extension = fileInfo.suffix().toLower();
         QStringList supportedFormats = {"mp3", "flac", "ogg", "wav", "m4a", "aac"};
         if (!supportedFormats.contains(extension)) {
@@ -84,22 +81,17 @@ void AudioController::openFile(const QString &filePath)
         QUrl url = QUrl::fromLocalFile(filePath);
         m_player->setSource(url);
 
-        // Create and load track
         m_currentTrack = Track(filePath);
-
         setTrackInfo(m_currentTrack.title(), m_currentTrack.artist());
 
-        // Try to load album art from cache
         auto cachedArt = m_albumArtCache.get(m_currentTrack.album());
         if (cachedArt.has_value()) {
             qDebug() << "Using cached album art for:" << m_currentTrack.album();
         }
 
         setThumbnail("");
-
         play();
 
-        // Update statistics
         m_currentTrack.incrementPlayCount();
         m_currentTrack.updateLastPlayed();
 
@@ -138,7 +130,7 @@ void AudioController::playYouTubeAudio(const QString &query)
 
     QString ytDlpPath = QCoreApplication::applicationDirPath() + "/yt-dlp.exe";
     if (!QFile::exists(ytDlpPath)) {
-        qWarning() << "yt-dlp.exe not found at path:" << ytDlpPath;
+        qWarning() << "yt-dlp.exe not found at:" << ytDlpPath;
         m_mediaStatus = Error;
         emit mediaStatusChanged();
         return;
@@ -154,7 +146,7 @@ void AudioController::playYouTubeAudio(const QString &query)
 
     connect(ytDlp, &QProcess::finished, this, [=](int exitCode) {
         if (exitCode != 0) {
-            qWarning() << "yt-dlp process failed with code:" << exitCode;
+            qWarning() << "yt-dlp failed with code:" << exitCode;
             m_mediaStatus = Error;
             emit mediaStatusChanged();
             ytDlp->deleteLater();
@@ -163,7 +155,7 @@ void AudioController::playYouTubeAudio(const QString &query)
 
         QByteArray output = ytDlp->readAllStandardOutput();
         if (output.isEmpty()) {
-            qWarning() << "yt-dlp returned no data.";
+            qWarning() << "yt-dlp returned no data";
             m_mediaStatus = Error;
             emit mediaStatusChanged();
             ytDlp->deleteLater();
@@ -176,7 +168,7 @@ void AudioController::playYouTubeAudio(const QString &query)
         if (entry.contains("entries") && entry["entries"].isArray()) {
             QJsonArray entries = entry["entries"].toArray();
             if (entries.isEmpty()) {
-                qWarning() << "yt-dlp: No entries found for query.";
+                qWarning() << "No entries found for query";
                 m_mediaStatus = Error;
                 emit mediaStatusChanged();
                 ytDlp->deleteLater();
@@ -191,7 +183,7 @@ void AudioController::playYouTubeAudio(const QString &query)
         QString thumbnailUrl = entry["thumbnail"].toString();
 
         if (audioUrl.isEmpty()) {
-            qWarning() << "yt-dlp: Could not find audio URL in JSON.";
+            qWarning() << "Could not find audio URL in JSON";
             m_mediaStatus = Error;
             emit mediaStatusChanged();
             ytDlp->deleteLater();
@@ -202,15 +194,12 @@ void AudioController::playYouTubeAudio(const QString &query)
         if (thumbnailUrl.contains("vi_webp")) {
             QRegularExpression re("vi_webp/([\\w-]+)/.*");
             QRegularExpressionMatch match = re.match(thumbnailUrl);
-
             if (match.hasMatch()) {
                 QString videoId = match.captured(1);
                 thumbnailUrl = QString("https://i.ytimg.com/vi/%1/hqdefault.jpg").arg(videoId);
-                qDebug() << "WebP thumbnail detected. Falling back to JPG:" << thumbnailUrl;
             }
         }
 
-        // Create track from YouTube data
         m_currentTrack = Track();
         m_currentTrack.setTitle(title);
         m_currentTrack.setArtist(artist);
@@ -232,7 +221,6 @@ void AudioController::play()
 {
     m_player->play();
 
-    // Start fade in if enabled
     if (m_fadeInEnabled) {
         startFadeIn();
     }
@@ -242,7 +230,6 @@ void AudioController::pause()
 {
     m_player->pause();
 
-    // Stop fade timer if running
     if (m_fadeTimer->isActive()) {
         m_fadeTimer->stop();
     }
@@ -260,7 +247,7 @@ void AudioController::setVolume(qreal volume)
     if (qFuzzyCompare(m_volume, volume)) return;
 
     m_volume = volume;
-    applyVolumeEffects(); // Apply all volume-based effects
+    applyVolumeEffects();
     emit volumeChanged();
 }
 
@@ -320,11 +307,11 @@ void AudioController::setTrackInfo(const QString &title, const QString &artist)
     }
 }
 
-// ==================== NEW: Working Audio Effects ====================
+// ==================== Audio Effects ====================
 
 void AudioController::setGainBoost(qreal gain)
 {
-    gain = qBound(0.0, gain, 2.0); // Limit to 0-200%
+    gain = qBound(0.0, gain, 2.0);
 
     if (qFuzzyCompare(m_gainBoost, gain)) return;
 
@@ -332,19 +319,16 @@ void AudioController::setGainBoost(qreal gain)
     applyVolumeEffects();
     emit gainBoostChanged();
 
-    qDebug() << "Gain boost set to:" << m_gainBoost << "(" << (m_gainBoost * 100) << "%)";
+    qDebug() << "Gain boost set to:" << (m_gainBoost * 100) << "%";
 }
 
 void AudioController::setBalance(qreal balance)
 {
-    balance = qBound(-1.0, balance, 1.0); // -1 (left) to 1 (right)
+    balance = qBound(-1.0, balance, 1.0);
 
     if (qFuzzyCompare(m_balance, balance)) return;
 
     m_balance = balance;
-    // Note: Qt's QAudioOutput doesn't have built-in balance control
-    // This would require lower-level audio API or custom processing
-    // For now, we just store the value and emit signal
     emit balanceChanged();
 
     qDebug() << "Balance set to:" << m_balance;
@@ -352,7 +336,7 @@ void AudioController::setBalance(qreal balance)
 
 void AudioController::setPlaybackRate(qreal rate)
 {
-    rate = qBound(0.25, rate, 2.0); // 25% to 200% speed
+    rate = qBound(0.25, rate, 2.0);
 
     if (qFuzzyCompare(m_playbackRate, rate)) return;
 
@@ -392,47 +376,92 @@ void AudioController::resetEffects()
 
 void AudioController::applyVolumeEffects()
 {
-    // Calculate effective volume with gain boost
     qreal effectiveVolume = m_volume * m_gainBoost;
 
-    // Apply fade if enabled and in progress
     if (m_fadeInEnabled && m_fadeProgress < 1.0) {
         effectiveVolume *= m_fadeProgress;
     }
 
-    // Clamp to valid range (0.0 to 1.0)
     effectiveVolume = qBound(0.0, effectiveVolume, 1.0);
-
-    // Apply to audio output
     m_audioOutput->setVolume(effectiveVolume);
-
-    // Debug output
-    if (m_fadeInEnabled && m_fadeProgress < 1.0) {
-        qDebug() << "Applying volume effects - Base:" << m_volume
-                 << "Gain:" << m_gainBoost
-                 << "Fade:" << m_fadeProgress
-                 << "Effective:" << effectiveVolume;
-    }
 }
 
 void AudioController::startFadeIn()
 {
     if (m_fadeInEnabled && isPlaying()) {
         m_fadeProgress = 0.0;
-        applyVolumeEffects(); // Apply initial zero volume
+        applyVolumeEffects();
         m_fadeTimer->start();
-        qDebug() << "Fade in started (1 second duration)";
+        qDebug() << "Fade in started";
     }
 }
 
-// ==================== Legacy Audio Effects (Non-functional - Architecture Demo) ====================
+// ==================== Library Playback ====================
+
+void AudioController::setLibraryPlaybackMode(bool enabled)
+{
+    if (m_libraryPlaybackEnabled == enabled) return;
+
+    m_libraryPlaybackEnabled = enabled;
+    emit libraryPlaybackEnabledChanged();
+
+    qDebug() << "Library playback mode:" << (enabled ? "enabled" : "disabled");
+}
+
+void AudioController::playFromLibraryIndex(int index)
+{
+    if (index < 0 || index >= static_cast<int>(m_libraryQueue.size())) {
+        qWarning() << "Invalid library index:" << index;
+        return;
+    }
+
+    m_currentLibraryIndex = index;
+    QString trackPath = m_libraryQueue[index];
+    openFile(trackPath);
+
+    qDebug() << "Playing from library index:" << index << "Path:" << trackPath;
+}
+
+void AudioController::updateLibraryQueue(const QStringList& trackPaths)
+{
+    m_libraryQueue.clear();
+    for (const QString& path : trackPaths) {
+        m_libraryQueue.push_back(path);
+    }
+
+    qDebug() << "Library queue updated with" << m_libraryQueue.size() << "tracks";
+}
+
+void AudioController::playNextInLibrary()
+{
+    if (!m_libraryPlaybackEnabled || m_libraryQueue.empty()) {
+        qDebug() << "Library playback disabled or queue empty";
+        return;
+    }
+
+    m_currentLibraryIndex++;
+
+    if (m_currentLibraryIndex >= static_cast<int>(m_libraryQueue.size())) {
+        qDebug() << "Reached end of library";
+        m_currentLibraryIndex = -1;
+        m_libraryPlaybackEnabled = false;
+        emit libraryPlaybackEnabledChanged();
+        return;
+    }
+
+    QString nextTrack = m_libraryQueue[m_currentLibraryIndex];
+    qDebug() << "Auto-playing next:" << m_currentLibraryIndex + 1 << "/" << m_libraryQueue.size();
+    openFile(nextTrack);
+}
+
+// ==================== Legacy Effect Methods ====================
 
 void AudioController::addEqualizerEffect()
 {
     try {
         auto eq = std::make_unique<EqualizerEffect>();
         m_effectChain.addEffect(std::move(eq));
-        qDebug() << "Equalizer effect added (non-functional - architecture demo)";
+        qDebug() << "Equalizer effect added (demo only)";
     }
     catch (const std::exception& e) {
         qWarning() << "Failed to add equalizer:" << e.what();
@@ -456,7 +485,7 @@ void AudioController::setEqualizerBand(int band, float gain)
         AudioEffect* effect = m_effectChain.getEffect(i);
         if (auto* eq = dynamic_cast<EqualizerEffect*>(effect)) {
             eq->setBand(band, gain);
-            qDebug() << "EQ band" << band << "set to" << gain << "dB (non-functional)";
+            qDebug() << "EQ band" << band << "set to" << gain << "dB (demo)";
             break;
         }
     }
@@ -468,7 +497,7 @@ void AudioController::setEqualizerPreset(const QString& preset)
         AudioEffect* effect = m_effectChain.getEffect(i);
         if (auto* eq = dynamic_cast<EqualizerEffect*>(effect)) {
             eq->setPreset(preset);
-            qDebug() << "EQ preset set to:" << preset << "(non-functional)";
+            qDebug() << "EQ preset set to:" << preset << "(demo)";
             break;
         }
     }
@@ -479,7 +508,7 @@ void AudioController::addReverbEffect()
     try {
         auto reverb = std::make_unique<ReverbEffect>();
         m_effectChain.addEffect(std::move(reverb));
-        qDebug() << "Reverb effect added (non-functional - architecture demo)";
+        qDebug() << "Reverb effect added (demo only)";
     }
     catch (const std::exception& e) {
         qWarning() << "Failed to add reverb:" << e.what();
@@ -492,7 +521,7 @@ void AudioController::setReverbRoomSize(float size)
         AudioEffect* effect = m_effectChain.getEffect(i);
         if (auto* reverb = dynamic_cast<ReverbEffect*>(effect)) {
             reverb->setRoomSize(size);
-            qDebug() << "Reverb room size set to:" << size << "(non-functional)";
+            qDebug() << "Reverb room size:" << size << "(demo)";
             break;
         }
     }
@@ -504,7 +533,7 @@ void AudioController::setReverbDamping(float damping)
         AudioEffect* effect = m_effectChain.getEffect(i);
         if (auto* reverb = dynamic_cast<ReverbEffect*>(effect)) {
             reverb->setDamping(damping);
-            qDebug() << "Reverb damping set to:" << damping << "(non-functional)";
+            qDebug() << "Reverb damping:" << damping << "(demo)";
             break;
         }
     }
@@ -516,7 +545,7 @@ void AudioController::setReverbMix(float mix)
         AudioEffect* effect = m_effectChain.getEffect(i);
         if (auto* reverb = dynamic_cast<ReverbEffect*>(effect)) {
             reverb->setWetDryMix(mix);
-            qDebug() << "Reverb mix set to:" << mix << "(non-functional)";
+            qDebug() << "Reverb mix:" << mix << "(demo)";
             break;
         }
     }
@@ -527,7 +556,7 @@ void AudioController::addBassBoostEffect()
     try {
         auto bass = std::make_unique<BassBoostEffect>();
         m_effectChain.addEffect(std::move(bass));
-        qDebug() << "Bass boost effect added (non-functional - architecture demo)";
+        qDebug() << "Bass boost added (demo only)";
     }
     catch (const std::exception& e) {
         qWarning() << "Failed to add bass boost:" << e.what();
@@ -540,7 +569,7 @@ void AudioController::setBassBoostLevel(float level)
         AudioEffect* effect = m_effectChain.getEffect(i);
         if (auto* bass = dynamic_cast<BassBoostEffect*>(effect)) {
             bass->setBoostLevel(level);
-            qDebug() << "Bass boost level set to:" << level << "(non-functional)";
+            qDebug() << "Bass boost level:" << level << "(demo)";
             break;
         }
     }
@@ -553,7 +582,7 @@ void AudioController::addToQueue(const QString& filePath)
     try {
         Track track(filePath);
         m_queue.push(track);
-        qDebug() << "Added to queue:" << filePath << "- Queue size:" << m_queue.size();
+        qDebug() << "Added to queue:" << filePath << "- Size:" << m_queue.size();
     }
     catch (const std::exception& e) {
         qWarning() << "Failed to add to queue:" << e.what();
@@ -572,7 +601,7 @@ void AudioController::playNext()
         }
     }
     catch (const std::exception& e) {
-        qWarning() << "Failed to play next track:" << e.what();
+        qWarning() << "Failed to play next:" << e.what();
     }
 }
 
@@ -615,24 +644,35 @@ void AudioController::onMetaDataChanged()
 void AudioController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
 {
     switch (status) {
+    case QMediaPlayer::EndOfMedia:
+        qDebug() << "Media Status: End of Media";
+        if (m_libraryPlaybackEnabled) {
+            qDebug() << "Auto-playing next track...";
+            playNextInLibrary();
+        }
+        break;
+
     case QMediaPlayer::LoadingMedia:
         m_mediaStatus = Loading;
         qDebug() << "Media Status: Loading...";
         break;
+
     case QMediaPlayer::LoadedMedia:
         m_mediaStatus = Loaded;
-        qDebug() << "Media Status: Loaded.";
+        qDebug() << "Media Status: Loaded";
         m_isRecovering = false;
         break;
+
     case QMediaPlayer::BufferingMedia:
         m_mediaStatus = Buffering;
         qDebug() << "Media Status: Buffering...";
         break;
+
     case QMediaPlayer::StalledMedia:
         m_mediaStatus = Stalled;
-        qWarning() << "Media Status: Stalled! (Network connection likely lost)";
+        qWarning() << "Media Status: Stalled!";
         if (isPlaying() && !m_isRecovering) {
-            qWarning() << "Attempting to recover stalled stream...";
+            qWarning() << "Attempting recovery...";
             m_isRecovering = true;
             qint64 pos = m_player->position();
             m_player->pause();
@@ -640,10 +680,12 @@ void AudioController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
             m_player->play();
         }
         break;
+
     case QMediaPlayer::InvalidMedia:
         qWarning() << "Media Status: Invalid Media!";
         m_mediaStatus = Error;
         break;
+
     case QMediaPlayer::NoMedia:
     default:
         m_mediaStatus = NoMedia;
@@ -659,9 +701,7 @@ void AudioController::onErrorOccurred(QMediaPlayer::Error error, const QString &
     emit mediaStatusChanged();
 }
 
-
-
-// In AudioController.cpp - Add these test methods
+// ==================== OOP Test Methods ====================
 
 void AudioController::testAllOOPFeatures()
 {

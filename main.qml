@@ -43,6 +43,31 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: libraryModel
+
+        function onStatsChanged() {
+            console.log("Library stats updated")
+            updateLibraryQueue()
+        }
+    }
+
+    function updateLibraryQueue() {
+        var trackPaths = []
+        var count = libraryModel.totalTracks
+
+        for (var i = 0; i < count; i++) {
+            var path = libraryModel.getTrackPath(i)
+            if (path && path !== "") {
+                trackPaths.push(path)
+            }
+        }
+
+        // Update the controller's library queue
+        audioController.updateLibraryQueue(trackPaths)
+        console.log("Updated library queue with", trackPaths.length, "tracks")
+    }
+
     // Timer to close scan dialog when complete
     Timer {
         id: scanCloseTimer
@@ -969,12 +994,17 @@ ApplicationWindow {
                                         height: 70
                                         color: mouseArea.containsMouse ? root.surfaceLightColor : root.surfaceColor
 
-                                        MouseArea {
-                                            id: mouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onDoubleClicked: audioController.openFile(model.path)
-                                        }
+                                            MouseArea {
+                                                id: mouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                onDoubleClicked: {
+                                                    // Enable library playback mode
+                                                    audioController.setLibraryPlaybackMode(true)
+                                                    // Play from this index
+                                                    audioController.playFromLibraryIndex(index)
+                                                }
+                                            }
 
                                         RowLayout {
                                             anchors.fill: parent
@@ -1037,7 +1067,12 @@ ApplicationWindow {
                                                 text: "▶"
                                                 implicitWidth: 38
                                                 implicitHeight: 38
-                                                onClicked: audioController.openFile(model.path)
+                                                onClicked: {
+                                                    // Enable library playback mode
+                                                    audioController.setLibraryPlaybackMode(true)
+                                                    // Play from this index
+                                                    audioController.playFromLibraryIndex(index)
+                                                } // ✅ FIXED: Added closing brace
 
                                                 background: Rectangle {
                                                     radius: 19

@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <memory>
 #include <QImage>
+#include <vector>
 #include "Track.h"
 #include "AudioEffect.h"
 #include "CircularBuffer.h"
@@ -46,11 +47,14 @@ public:
     Q_PROPERTY(QString formattedDuration READ formattedDuration NOTIFY durationChanged)
     Q_PROPERTY(MediaStatus mediaStatus READ mediaStatus NOTIFY mediaStatusChanged)
 
-    // NEW: Audio Effect Properties
+    // Audio Effect Properties
     Q_PROPERTY(qreal gainBoost READ gainBoost WRITE setGainBoost NOTIFY gainBoostChanged)
     Q_PROPERTY(qreal balance READ balance WRITE setBalance NOTIFY balanceChanged)
     Q_PROPERTY(qreal playbackRate READ playbackRate WRITE setPlaybackRate NOTIFY playbackRateChanged)
     Q_PROPERTY(bool fadeInEnabled READ fadeInEnabled WRITE setFadeInEnabled NOTIFY fadeInEnabledChanged)
+
+    // Library Playback Property
+    Q_PROPERTY(bool libraryPlaybackEnabled READ isLibraryPlaybackEnabled NOTIFY libraryPlaybackEnabledChanged)
 
 public:
     explicit AudioController(QObject *parent = nullptr);
@@ -72,11 +76,14 @@ public:
     QString formattedDuration() const;
     MediaStatus mediaStatus() const { return m_mediaStatus; }
 
-    // NEW: Effect getters
+    // Effect getters
     qreal gainBoost() const { return m_gainBoost; }
     qreal balance() const { return m_balance; }
     qreal playbackRate() const { return m_playbackRate; }
     bool fadeInEnabled() const { return m_fadeInEnabled; }
+
+    // Library playback getter
+    bool isLibraryPlaybackEnabled() const { return m_libraryPlaybackEnabled; }
 
     // ==================== Invokable Methods ====================
 
@@ -88,14 +95,24 @@ public:
     Q_INVOKABLE void seek(qint64 position);
     Q_INVOKABLE void setVolume(qreal volume);
 
-    // NEW: Audio Effects Methods
+    // Audio Effects Methods
     Q_INVOKABLE void setGainBoost(qreal gain);
     Q_INVOKABLE void setBalance(qreal balance);
     Q_INVOKABLE void setPlaybackRate(qreal rate);
     Q_INVOKABLE void setFadeInEnabled(bool enabled);
     Q_INVOKABLE void resetEffects();
 
-    // Legacy effect methods (kept for compatibility but not functional)
+    // Library Playback Methods
+    Q_INVOKABLE void setLibraryPlaybackMode(bool enabled);
+    Q_INVOKABLE void playFromLibraryIndex(int index);
+    Q_INVOKABLE void updateLibraryQueue(const QStringList& trackPaths);
+
+    // Queue management
+    Q_INVOKABLE void addToQueue(const QString& filePath);
+    Q_INVOKABLE void playNext();
+    Q_INVOKABLE int queueSize() const;
+
+    // Legacy effect methods (architecture demonstration only)
     Q_INVOKABLE void addEqualizerEffect();
     Q_INVOKABLE void removeEffect(int index);
     Q_INVOKABLE void setEqualizerBand(int band, float gain);
@@ -107,14 +124,7 @@ public:
     Q_INVOKABLE void addBassBoostEffect();
     Q_INVOKABLE void setBassBoostLevel(float level);
 
-    // Queue management
-    Q_INVOKABLE void addToQueue(const QString& filePath);
-    Q_INVOKABLE void playNext();
-    Q_INVOKABLE int queueSize() const;
-
-
-    // In AudioController.h - Add these methods to test features
-
+    // OOP Test Methods
     Q_INVOKABLE void testAllOOPFeatures();
     Q_INVOKABLE void testFunctionOverloading();
     Q_INVOKABLE void testOperatorOverloading();
@@ -134,11 +144,14 @@ signals:
     void trackArtistChanged();
     void mediaStatusChanged();
 
-    // NEW: Effect signals
+    // Effect signals
     void gainBoostChanged();
     void balanceChanged();
     void playbackRateChanged();
     void fadeInEnabledChanged();
+
+    // Library playback signal
+    void libraryPlaybackEnabledChanged();
 
 private slots:
     // Media player event handlers
@@ -154,10 +167,9 @@ private:
     QString formatTime(qint64 milliseconds) const;
     void setThumbnail(const QString &url);
     void setTrackInfo(const QString &title, const QString &artist);
-
-    // NEW: Effect application methods
     void applyVolumeEffects();
     void startFadeIn();
+    void playNextInLibrary();
 
     // ==================== Member Variables ====================
 
@@ -173,17 +185,22 @@ private:
     MediaStatus m_mediaStatus = NoMedia;
     bool m_isRecovering = false;
 
-    // NEW: Audio effect parameters
-    qreal m_gainBoost = 1.0;           // 0.0 to 2.0 (volume boost)
-    qreal m_balance = 0.0;             // -1.0 (left) to 1.0 (right)
-    qreal m_playbackRate = 1.0;        // 0.25 to 2.0 (speed/pitch)
-    bool m_fadeInEnabled = false;      // Fade in on play
+    // Library playback state
+    bool m_libraryPlaybackEnabled = false;
+    int m_currentLibraryIndex = -1;
+    std::vector<QString> m_libraryQueue;
+
+    // Audio effect parameters
+    qreal m_gainBoost = 1.0;
+    qreal m_balance = 0.0;
+    qreal m_playbackRate = 1.0;
+    bool m_fadeInEnabled = false;
 
     // Fade effect state
     QTimer* m_fadeTimer;
-    qreal m_fadeProgress = 0.0;
+    qreal m_fadeProgress = 1.0;
 
-    // Legacy effect chain (kept for architecture demonstration)
+    // Legacy effect chain (architecture demonstration)
     EffectChain m_effectChain;
 
     // Playback queue
