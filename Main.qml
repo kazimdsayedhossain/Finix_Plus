@@ -1376,6 +1376,7 @@ ApplicationWindow {
                                 }
 
                                 // OOP Features Detail
+                                // OOP Features Detail
                                 Rectangle {
                                     Layout.fillWidth: true
                                     Layout.margins: 30
@@ -1397,54 +1398,63 @@ ApplicationWindow {
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "1-3"
                                             title: "Classes, Constructors, Destructors"
                                             description: "AudioController, Track, MusicLibrary with proper initialization/cleanup"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "4"
                                             title: "Function Overloading"
                                             description: "Track::setDuration() with multiple signatures, Track::play() overloads"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "5"
                                             title: "Operator Overloading"
                                             description: "Track comparison (==, <), increment (++), stream (<<) operators"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "6"
                                             title: "Friend Functions & Classes"
                                             description: "printTrackDetails() friend function, PlaylistManager friend class"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "7"
                                             title: "Static Members"
                                             description: "Track::getTotalTracksCreated(), Track::formatDuration()"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "8-11"
                                             title: "Inheritance & Polymorphism"
                                             description: "AudioEffect base → Equalizer, Reverb, Bass Boost with virtual functions"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "12-13"
                                             title: "Templates"
                                             description: "CircularBuffer<T> for queue, LRUCache<K,V> for album art cache"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "14"
                                             title: "Exception Handling"
                                             description: "AudioException hierarchy with try-catch error handling"
                                         }
 
                                         OOPFeatureDetail {
+                                            Layout.fillWidth: true
                                             number: "15"
                                             title: "STL Containers"
                                             description: "std::vector, std::unique_ptr, std::map, std::list"
@@ -2086,35 +2096,50 @@ ApplicationWindow {
 
     // ========== CUSTOM COMPONENTS ==========
 
+    component NavigationButton: Item {
+        id: navButton
+        property string icon: ""
+        property string text: ""
+        property bool active: false
+        signal clicked()
 
-        component NavigationButton: Button {
-            property string icon: ""
-            property bool active: false
+        implicitHeight: 50
 
-            implicitHeight: 50
+        Rectangle {
+            id: buttonBackground
+            anchors.fill: parent
+            radius: 8
+            color: active ? root.primaryColor : (mouseArea.containsMouse ? root.surfaceLightColor : "transparent")
+        }
 
-            background: Rectangle {
-                radius: 8
-                color: active ? root.primaryColor : (parent.hovered ? root.surfaceLightColor : "transparent")
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 15
+            anchors.rightMargin: 15
+            spacing: 15
+
+            Label {
+                text: navButton.icon
+                font.pixelSize: 20
+                Layout.preferredWidth: 30
             }
 
-            contentItem: RowLayout {
-                spacing: 15
-
-                Label {
-                    text: icon
-                    font.pixelSize: 20
-                    implicitWidth: 30
-                }
-
-                Label {
-                    text: parent.parent.text
-                    font.pixelSize: 14
-                    font.bold: active
-                    color: root.textColor
-                }
+            Label {
+                text: navButton.text
+                font.pixelSize: 14
+                font.bold: navButton.active
+                color: root.textColor
             }
         }
+
+        MouseArea {
+            id: mouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: navButton.clicked()
+        }
+    }
 
         component QuickActionCard: Rectangle {
             property string icon: ""
@@ -2218,7 +2243,7 @@ ApplicationWindow {
                 text: label
                 font.pixelSize: 13
                 color: root.textSecondaryColor
-                implicitWidth: 120
+                Layout.preferredWidth: 120
             }
 
             Label {
@@ -2229,67 +2254,60 @@ ApplicationWindow {
             }
         }
 
-        component OOPFeatureDetail: Item {
-            property string number: ""
-            property string title: ""
-            property string description: ""
+    component OOPFeatureDetail: ColumnLayout {
+        property string number: ""
+        property string title: ""
+        property string description: ""
 
-            implicitHeight: contentLayout.implicitHeight
-            implicitWidth: contentLayout.implicitWidth
+        spacing: 5
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: root.surfaceLightColor
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 10
+            spacing: 15
+
+            Rectangle {
+                Layout.preferredWidth: 50
+                Layout.preferredHeight: 50
+                radius: 25
+                color: root.primaryColor
+
+                Label {
+                    anchors.centerIn: parent
+                    text: number
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: "white"
+                }
+            }
 
             ColumnLayout {
-                id: contentLayout
-                anchors.fill: parent
+                Layout.fillWidth: true
                 spacing: 5
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 1
-                    color: root.surfaceLightColor
+                Label {
+                    text: title
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: root.textColor
                 }
 
-                RowLayout {
+                Label {
+                    text: description
+                    font.pixelSize: 12
+                    color: root.textSecondaryColor
+                    wrapMode: Text.WordWrap
                     Layout.fillWidth: true
-                    Layout.topMargin: 10
-                    spacing: 15
-
-                    Rectangle {
-                        Layout.preferredWidth: 50
-                        Layout.preferredHeight: 50
-                        radius: 25
-                        color: root.primaryColor
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: number
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: "white"
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 5
-
-                        Label {
-                            text: title
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: root.textColor
-                        }
-
-                        Label {
-                            text: description
-                            font.pixelSize: 12
-                            color: root.textSecondaryColor
-                            wrapMode: Text.WordWrap
-                            Layout.fillWidth: true
-                        }
-                    }
                 }
             }
         }
+    }
 
         // Helper function for formatting duration
         function formatDuration(milliseconds) {
