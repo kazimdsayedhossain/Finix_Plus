@@ -27,9 +27,9 @@ ApplicationWindow {
     }
 
     // ==================== MUSIC LIBRARY ====================
-    MusicLibrary {
-        id: musicLibrary
-    }
+    // MusicLibrary {
+    //     id: musicLibrary
+    // }
 
     // ==================== BACKGROUND ====================
     Rectangle {
@@ -103,6 +103,10 @@ ApplicationWindow {
                         text: qsTr("Home")
                         active: stackView.currentItem === homePage
                         onClicked: stackView.replace(homePage)
+
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 15
+                        Layout.rightMargin: 15
                     }
 
                     NavigationButton {
@@ -110,6 +114,10 @@ ApplicationWindow {
                         text: qsTr("Audio Effects")
                         active: stackView.currentItem === effectsPage
                         onClicked: stackView.replace(effectsPage)
+
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 15
+                        Layout.rightMargin: 15
                     }
 
                     NavigationButton {
@@ -117,6 +125,10 @@ ApplicationWindow {
                         text: qsTr("Library")
                         active: stackView.currentItem === libraryPage
                         onClicked: stackView.replace(libraryPage)
+
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 15
+                        Layout.rightMargin: 15
                     }
 
                     NavigationButton {
@@ -124,6 +136,10 @@ ApplicationWindow {
                         text: qsTr("Settings")
                         active: stackView.currentItem === settingsPage
                         onClicked: stackView.replace(settingsPage)
+
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 15
+                        Layout.rightMargin: 15
                     }
                 }
 
@@ -279,7 +295,7 @@ ApplicationWindow {
                                                 fillMode: Image.PreserveAspectCrop
                                                 visible: source != ""
                                                 layer.enabled: true
-                                                layer.effect: OpacityMask {
+                                                layer.effect: OpacityMasks {
                                                     maskSource: Rectangle {
                                                         width: albumArt.width
                                                         height: albumArt.height
@@ -1563,7 +1579,7 @@ ApplicationWindow {
                 Layout.preferredHeight: 120
                 color: root.surfaceColor
                 layer.enabled: true
-                layer.effect: DropShadow {
+                layer.effect: DropShadows {
                     horizontalOffset: 0
                     verticalOffset: -3
                     radius: 10
@@ -2069,198 +2085,68 @@ ApplicationWindow {
 
     // ========== CUSTOM COMPONENTS ==========
 
-    // Navigation Button Component
-    component NavigationButton: Button {
-        property string icon: ""
-        property bool active: false
+        component NavigationButton: Button {
+            property string icon: ""
+            property bool active: false
 
-        Layout.fillWidth: true
-        Layout.leftMargin: 15
-        Layout.rightMargin: 15
-        implicitHeight: 50
+            implicitHeight: 50
 
-        background: Rectangle {
-            radius: 8
-            color: active ? root.primaryColor : (parent.hovered ? root.surfaceLightColor : "transparent")
-        }
-
-        contentItem: RowLayout {
-            spacing: 15
-
-            Label {
-                text: icon
-                font.pixelSize: 20
-                Layout.preferredWidth: 30
+            background: Rectangle {
+                radius: 8
+                color: active ? root.primaryColor : (parent.hovered ? root.surfaceLightColor : "transparent")
             }
 
-            Label {
-                text: parent.parent.text
-                font.pixelSize: 14
-                font.bold: active
-                color: root.textColor
-            }
-        }
-    }
-
-    // Quick Action Card Component
-    component QuickActionCard: Rectangle {
-        property string icon: ""
-        property string title: ""
-        property string description: ""
-        signal clicked()
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: 120
-        color: root.surfaceColor
-        radius: 12
-        border.color: mouseArea.containsMouse ? root.primaryColor : "transparent"
-        border.width: 2
-
-        MouseArea {
-            id: mouseArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: parent.clicked()
-        }
-
-        ColumnLayout {
-            anchors.centerIn: parent
-            spacing: 10
-
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: icon
-                font.pixelSize: 36
-            }
-
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: title
-                font.pixelSize: 14
-                font.bold: true
-                color: root.textColor
-            }
-
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: description
-                font.pixelSize: 11
-                color: root.textSecondaryColor
-            }
-        }
-    }
-
-    // OOP Feature Badge Component
-    component OOPFeatureBadge: Rectangle {
-        property string text: ""
-
-        Layout.fillWidth: true
-        implicitHeight: 35
-        color: root.surfaceLightColor
-        radius: 6
-
-        Label {
-            anchors.centerIn: parent
-            text: parent.text
-            font.pixelSize: 11
-            color: root.textColor
-        }
-    }
-
-    // Library Stat Item Component
-    component LibraryStatItem: ColumnLayout {
-        property string icon: ""
-        property string label: ""
-        property int value: 0
-
-        spacing: 5
-
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            text: icon
-            font.pixelSize: 24
-        }
-
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            text: value.toString()
-            font.pixelSize: 20
-            font.bold: true
-            color: root.primaryColor
-        }
-
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            text: label
-            font.pixelSize: 11
-            color: root.textSecondaryColor
-        }
-    }
-
-    // Info Row Component
-    component InfoRow: RowLayout {
-        property string label: ""
-        property string value: ""
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        Label {
-            text: label
-            font.pixelSize: 13
-            color: root.textSecondaryColor
-            Layout.preferredWidth: 120
-        }
-
-        Label {
-            text: value
-            font.pixelSize: 13
-            font.bold: true
-            color: root.textColor
-        }
-    }
-
-    // OOP Feature Detail Component
-    component OOPFeatureDetail: ColumnLayout {
-        property string number: ""
-        property string title: ""
-        property string description: ""
-
-        Layout.fillWidth: true
-        spacing: 5
-
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: root.surfaceLightColor
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.topMargin: 10
-            spacing: 15
-
-            Rectangle {
-                Layout.preferredWidth: 50
-                Layout.preferredHeight: 50
-                radius: 25
-                color: root.primaryColor
+            contentItem: RowLayout {
+                spacing: 15
 
                 Label {
-                    anchors.centerIn: parent
-                    text: number
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: "white"
+                    text: icon
+                    font.pixelSize: 20
+                    implicitWidth: 30
                 }
+
+                Label {
+                    text: parent.parent.text
+                    font.pixelSize: 14
+                    font.bold: active
+                    color: root.textColor
+                }
+            }
+        }
+
+        component QuickActionCard: Rectangle {
+            property string icon: ""
+            property string title: ""
+            property string description: ""
+            signal clicked()
+
+            implicitWidth: 200
+            implicitHeight: 120
+            color: root.surfaceColor
+            radius: 12
+            border.color: mouseArea.containsMouse ? root.primaryColor : "transparent"
+            border.width: 2
+
+            MouseArea {
+                id: mouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: parent.clicked()
             }
 
             ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 5
+                anchors.centerIn: parent
+                spacing: 10
 
                 Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: icon
+                    font.pixelSize: 36
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
                     text: title
                     font.pixelSize: 14
                     font.bold: true
@@ -2268,27 +2154,145 @@ ApplicationWindow {
                 }
 
                 Label {
+                    Layout.alignment: Qt.AlignHCenter
                     text: description
-                    font.pixelSize: 12
+                    font.pixelSize: 11
                     color: root.textSecondaryColor
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
                 }
             }
         }
-    }
 
-    // Helper function for formatting duration
-    function formatDuration(milliseconds) {
-        if (milliseconds <= 0) return "0:00"
-        var totalSeconds = Math.floor(milliseconds / 1000)
-        var minutes = Math.floor(totalSeconds / 60)
-        var seconds = totalSeconds % 60
-        return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
-    }
+        component OOPFeatureBadge: Rectangle {
+            property string text: ""
+
+            implicitHeight: 35
+            color: root.surfaceLightColor
+            radius: 6
+
+            Label {
+                anchors.centerIn: parent
+                text: parent.text
+                font.pixelSize: 11
+                color: root.textColor
+            }
+        }
+
+        component LibraryStatItem: ColumnLayout {
+            property string icon: ""
+            property string label: ""
+            property int value: 0
+
+            spacing: 5
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: icon
+                font.pixelSize: 24
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: value.toString()
+                font.pixelSize: 20
+                font.bold: true
+                color: root.primaryColor
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: label
+                font.pixelSize: 11
+                color: root.textSecondaryColor
+            }
+        }
+
+        component InfoRow: RowLayout {
+            property string label: ""
+            property string value: ""
+
+            spacing: 10
+
+            Label {
+                text: label
+                font.pixelSize: 13
+                color: root.textSecondaryColor
+                implicitWidth: 120
+            }
+
+            Label {
+                text: value
+                font.pixelSize: 13
+                font.bold: true
+                color: root.textColor
+            }
+        }
+
+        component OOPFeatureDetail: ColumnLayout {
+            property string number: ""
+            property string title: ""
+            property string description: ""
+
+            spacing: 5
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: root.surfaceLightColor
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+                spacing: 15
+
+                Rectangle {
+                    implicitWidth: 50
+                    implicitHeight: 50
+                    radius: 25
+                    color: root.primaryColor
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: number
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: "white"
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 5
+
+                    Label {
+                        text: title
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: root.textColor
+                    }
+
+                    Label {
+                        text: description
+                        font.pixelSize: 12
+                        color: root.textSecondaryColor
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+        }
+
+        // Helper function for formatting duration
+        function formatDuration(milliseconds) {
+            if (milliseconds <= 0) return "0:00"
+            var totalSeconds = Math.floor(milliseconds / 1000)
+            var minutes = Math.floor(totalSeconds / 60)
+            var seconds = totalSeconds % 60
+            return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+        }
 
     // ========== DROP SHADOW EFFECT ==========
-    component DropShadow: Item {
+    component DropShadows: Item {
         property int horizontalOffset: 0
         property int verticalOffset: 0
         property int radius: 0
@@ -2297,7 +2301,7 @@ ApplicationWindow {
     }
 
     // ========== OPACITY MASK EFFECT ==========
-    component OpacityMask: Item {
+    component OpacityMasks: Item {
         property Item maskSource
     }
 
