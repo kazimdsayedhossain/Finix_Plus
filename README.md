@@ -74,7 +74,7 @@ Finix Player is a sophisticated music player application that demonstrates advan
 *Modern interface with now playing display*
 
 ### Audio Effects Panel
-![Effects Panel](assests/Effects.png)
+![Effects Panel](assests/Effect.png)
 *Professional-grade real-time audio effects*
 
 ### Music Library
