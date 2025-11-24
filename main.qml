@@ -68,6 +68,7 @@ ApplicationWindow {
         console.log("Updated library queue with", trackPaths.length, "tracks")
     }
 
+
     // Timer to close scan dialog when complete
     Timer {
         id: scanCloseTimer
@@ -1612,7 +1613,9 @@ ApplicationWindow {
 
 
 
-            // ==================== PLAYBACK CONTROLS ====================
+            // ==================== PLAYBACK CONTROLS (BOTTOM BAR) ====================
+            // Replace the existing playback controls section with this fixed version
+
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 120
@@ -1689,7 +1692,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         spacing: 20
 
-                        // Track Info
+                        // Track Info (Left Side)
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.maximumWidth: 300
@@ -1742,17 +1745,19 @@ ApplicationWindow {
 
                         Item { Layout.fillWidth: true }
 
-                        // Playback Controls
+                        // Playback Controls (Center)
                         RowLayout {
                             Layout.alignment: Qt.AlignCenter
                             spacing: 15
 
+                            // Previous/Restart Button
                             ControlButton {
                                 text: "⏮"
                                 onClicked: audioController.seek(0)
                                 enabled: audioController.duration > 0
                             }
 
+                            // Play/Pause Button
                             ControlButton {
                                 text: audioController.isPlaying ? "⏸" : "▶"
                                 primary: true
@@ -1760,16 +1765,38 @@ ApplicationWindow {
                                 enabled: audioController.duration > 0
                             }
 
+                            // Next Button - FIXED: Now properly handles library playback
                             ControlButton {
                                 text: "⏭"
-                                onClicked: audioController.playNext()
-                                enabled: audioController.queueSize() > 0
+                                // Enable if either queue has items OR library playback is active
+                                enabled: audioController.queueSize() > 0 || audioController.libraryPlaybackEnabled
+
+                                onClicked: {
+                                    // If library playback mode is enabled, play next from library
+                                    if (audioController.libraryPlaybackEnabled) {
+                                        console.log("Playing next track from library")
+                                        audioController.playNextInLibrary()
+                                    } else {
+                                        // Otherwise, play next from queue
+                                        console.log("Playing next track from queue")
+                                        audioController.playNext()
+                                    }
+                                }
+
+                                // Visual feedback: different color when library mode is active
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: audioController.libraryPlaybackEnabled ? root.accentColor : root.textColor
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: 16
+                                }
                             }
                         }
 
                         Item { Layout.fillWidth: true }
 
-                        // Volume Control
+                        // Volume Control (Right Side)
                         RowLayout {
                             Layout.alignment: Qt.AlignRight
                             Layout.maximumWidth: 200
@@ -1827,6 +1854,23 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+            }
+
+            // Optional: Add a visual indicator showing library playback mode is active
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 3
+                color: root.accentColor
+                visible: audioController.libraryPlaybackEnabled
+
+                SequentialAnimation on opacity {
+                    running: audioController.libraryPlaybackEnabled
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 0.3; to: 1.0; duration: 800 }
+                    NumberAnimation { from: 1.0; to: 0.3; duration: 800 }
                 }
             }
         }

@@ -12,6 +12,5 @@
         <file>assests/animation.json</file>
         <file>test.qml</file>
         <file>LibraryView.qml</file>
-        <file>EqualizerPanel.qml</file>
     </qresource>
 </RCC>

@@ -10,7 +10,6 @@
 #include <QImage>
 #include <vector>
 #include "Track.h"
-#include "AudioEffect.h"
 #include "CircularBuffer.h"
 #include "Cache.h"
 #include "PlaylistManager.h"
@@ -112,24 +111,7 @@ public:
     Q_INVOKABLE void playNext();
     Q_INVOKABLE int queueSize() const;
 
-    // Legacy effect methods (architecture demonstration only)
-    Q_INVOKABLE void addEqualizerEffect();
-    Q_INVOKABLE void removeEffect(int index);
-    Q_INVOKABLE void setEqualizerBand(int band, float gain);
-    Q_INVOKABLE void setEqualizerPreset(const QString& preset);
-    Q_INVOKABLE void addReverbEffect();
-    Q_INVOKABLE void setReverbRoomSize(float size);
-    Q_INVOKABLE void setReverbDamping(float damping);
-    Q_INVOKABLE void setReverbMix(float mix);
-    Q_INVOKABLE void addBassBoostEffect();
-    Q_INVOKABLE void setBassBoostLevel(float level);
 
-    // OOP Test Methods
-    Q_INVOKABLE void testAllOOPFeatures();
-    Q_INVOKABLE void testFunctionOverloading();
-    Q_INVOKABLE void testOperatorOverloading();
-    Q_INVOKABLE void testStaticMembers();
-    Q_INVOKABLE void testFriendFunction();
 
 signals:
     // Playback signals
@@ -200,8 +182,6 @@ private:
     QTimer* m_fadeTimer;
     qreal m_fadeProgress = 1.0;
 
-    // Legacy effect chain (architecture demonstration)
-    EffectChain m_effectChain;
 
     // Playback queue
     CircularBuffer<Track> m_queue;

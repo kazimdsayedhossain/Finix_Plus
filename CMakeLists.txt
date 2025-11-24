@@ -48,8 +48,6 @@ set(PROJECT_SOURCES
     Playlist.h
     MusicLibrary.cpp
     MusicLibrary.h
-    AudioEffect.cpp
-    AudioEffect.h
     LibraryModel.cpp
     LibraryModel.h
     AudioException.h
