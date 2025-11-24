@@ -70,7 +70,7 @@ Finix Player is a sophisticated music player application that demonstrates advan
 <div align="center">
 
 ### Home Screen
-![Home Screen](assests/About.png)
+![Home Screen](assests/Home.png)
 *Modern interface with now playing display*
 
 ### Audio Effects Panel
@@ -82,7 +82,7 @@ Finix Player is a sophisticated music player application that demonstrates advan
 *Organized library with smart search and filtering*
 
 ### Settings Page
-![Settings](assests/Settings.png)
+![Settings](assests/About.png)
 *Comprehensive settings and keyboard shortcuts*
 
 </div>
