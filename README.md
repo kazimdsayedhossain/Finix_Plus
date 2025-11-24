@@ -81,9 +81,9 @@ Finix Player is a sophisticated music player application that demonstrates advan
 ![Music Library](assests/Library.png)
 *Organized library with smart search and filtering*
 
-### Settings Page
+### About Page
 ![Settings](assests/About.png)
-*Comprehensive settings and keyboard shortcuts*
+*Comprehensive details and keyboard shortcuts*
 
 </div>
 
