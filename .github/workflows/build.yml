@@ -1,4 +1,4 @@
-name: Build Qt CMake App
+name: Build Qt QML App (CMake)
 
 on:
   push:
@@ -17,20 +17,29 @@ jobs:
       with:
         version: 6.6.0
         arch: win64_mingw
+        modules: qtquick qtmultimedia
 
     - name: Configure CMake
+      shell: bash
       run: |
         mkdir build
         cd build
-        cmake .. -G "MinGW Makefiles"
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
+      shell: bash
       run: |
         cd build
         mingw32-make -j2
 
+    - name: Deploy Qt runtime (QML + DLLs)
+      shell: bash
+      run: |
+        cd build
+        windeployqt --qmldir .. *.exe
+
     - name: Upload build folder
       uses: actions/upload-artifact@v4
       with:
-        name: Qt-CMake-Build
+        name: Qt-QML-Build
         path: build
