@@ -8,56 +8,56 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1. Get source code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Install Qt 6
-      # Note: 'qtshadertools' is required for almost all Qt 6 QML applications.
+      # 1. Install Qt 6 
+      # Removed 'cache: true' temporarily to fix the 400 error 
+      # and ensure a clean environment.
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.6.0'
           arch: 'win64_mingw'
+          # These are the exact internal names for aqt/Qt6.6.0
           modules: 'qtdeclarative qtmultimedia qtshadertools'
-          cache: true # Speeds up subsequent runs
+          setup-python: 'true'
 
-      # 3. Set up MinGW
-      # The windows-latest runner has MinGW, but we need to ensure it's in the PATH
+      # 2. Setup MinGW 
       - name: Setup MinGW
         uses: egor-tensin/setup-gcc@v1
         with:
-          version: 11 # Standard for Qt 6.6 compatibility
+          version: 11
           platform: x64
 
-      # 4. Configure project with CMake
-      # We use -DCMAKE_PREFIX_PATH to ensure CMake finds the Qt version we just installed
+      # 3. Configure CMake
+      # Using PowerShell to handle environment variables more reliably on Windows
       - name: Configure CMake
-        shell: bash
+        shell: pwsh
         run: |
           mkdir build
           cd build
-          cmake .. -G "MinGW Makefiles" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$Qt6_DIR"
+          cmake .. -G "MinGW Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
 
-      # 5. Build project
+      # 4. Build
       - name: Build
-        shell: bash
+        shell: pwsh
         run: |
           cd build
-          mingw32-make -j$(nproc)
+          mingw32-make -j2
 
-      # 6. Bundle Qt DLLs + QML runtime
-      # We use the full path to windeployqt to avoid "command not found" errors
+      # 5. Deploy (Gather DLLs)
       - name: Deploy Qt runtime
         shell: pwsh
         run: |
           cd build
+          # Manually point to windeployqt to ensure it is found
           $deployTool = "$env:Qt6_DIR/bin/windeployqt.exe"
           & $deployTool --qmldir ../ --no-translations --compiler-runtime *.exe
 
-      # 7. Upload compiled folder
+      # 6. Upload
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
