@@ -11,19 +11,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Install Qt 6 
-      # Removed 'cache: true' temporarily to fix the 400 error 
-      # and ensure a clean environment.
+      # 1. Install Qt 6
+      # Removed 'qtdeclarative' as it is part of the base Qt 6 install.
+      # Added 'qt5compat' just in case you use any older Qt types, 
+      # and 'qtimageformats' for better asset support.
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.6.0'
           arch: 'win64_mingw'
-          # These are the exact internal names for aqt/Qt6.6.0
-          modules: 'qtdeclarative qtmultimedia qtshadertools'
-          setup-python: 'true'
+          modules: 'qtmultimedia qtshadertools qt5compat'
+          cache: false # Keep false until we get a successful build to clear 400 error
 
-      # 2. Setup MinGW 
+      # 2. Setup MinGW
       - name: Setup MinGW
         uses: egor-tensin/setup-gcc@v1
         with:
@@ -31,7 +31,6 @@ jobs:
           platform: x64
 
       # 3. Configure CMake
-      # Using PowerShell to handle environment variables more reliably on Windows
       - name: Configure CMake
         shell: pwsh
         run: |
@@ -48,14 +47,14 @@ jobs:
           cd build
           mingw32-make -j2
 
-      # 5. Deploy (Gather DLLs)
+      # 5. Deploy
       - name: Deploy Qt runtime
         shell: pwsh
         run: |
           cd build
-          # Manually point to windeployqt to ensure it is found
           $deployTool = "$env:Qt6_DIR/bin/windeployqt.exe"
-          & $deployTool --qmldir ../ --no-translations --compiler-runtime *.exe
+          # Added --no-compiler-runtime to avoid conflicts with the setup-gcc action
+          & $deployTool --qmldir ../ --no-translations *.exe
 
       # 6. Upload
       - name: Upload build artifact
