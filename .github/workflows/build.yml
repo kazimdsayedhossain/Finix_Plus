@@ -1,4 +1,4 @@
-name: Finix_Plus Clean Build (Qt6 + CMake)
+name: Finix_Plus FINAL Build (Qt6 + CMake)
 
 on:
   workflow_dispatch:
@@ -11,12 +11,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install Qt 6.6.0
+      - name: Install Qt 6.6.0 (Desktop)
         uses: jurplel/install-qt-action@v3
         with:
           version: 6.6.0
           arch: win64_mingw
-          modules: qtdeclarative qtmultimedia
 
       - name: Configure CMake
         shell: bash
