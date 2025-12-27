@@ -11,34 +11,47 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install full Qt 6.6.0 Desktop
+      # 1. Install Qt 6.8.1 (LTS) - More likely to satisfy newer project requirements
+      - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: 6.6.0
-          arch: win64_mingw
+          version: '6.8.1'
+          arch: 'win64_mingw'
+          # Required modules for QML and Multimedia
+          modules: 'qtmultimedia qtshadertools'
 
+      # 2. Configure CMake
+      # Using pwsh (PowerShell) is much more reliable for paths on Windows runners
       - name: Configure CMake
-        shell: bash
+        shell: pwsh
         run: |
-          rm -rf build
-          mkdir build
-          cd build
-          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          New-Item -ItemType Directory -Path build
+          Set-Location build
+          # -DCMAKE_PREFIX_PATH helps CMake find the exact Qt we just installed
+          cmake .. -G "MinGW Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
 
+      # 3. Build
       - name: Build
-        shell: bash
+        shell: pwsh
         run: |
-          cd build
-          mingw32-make -j2
+          Set-Location build
+          mingw32-make -j$($env:NUMBER_OF_PROCESSORS)
 
-      - name: Deploy Qt runtime
-        shell: bash
+      # 4. Deploy Qt runtime
+      - name: Deploy
+        shell: pwsh
         run: |
-          cd build
-          windeployqt --qmldir .. *.exe
+          Set-Location build
+          # Use the absolute path to windeployqt provided by the action
+          $deployTool = "$env:Qt6_DIR/bin/windeployqt.exe"
+          & $deployTool --qmldir ../ --no-translations --compiler-runtime *.exe
 
+      # 5. Upload build artifact
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Finix_Plus_Build
-          path: build
+          name: Finix_Plus_Windows_Build
+          path: build/
