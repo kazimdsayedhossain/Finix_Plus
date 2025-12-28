@@ -23,21 +23,38 @@ jobs:
         python -m pip install aqtinstall
 
     # ---------------------------------------------------------
-    # Install Qt 6.10.x base
+    # Install Qt 6.10 base
     # ---------------------------------------------------------
     - name: Install Qt 6.10 base (win64_mingw)
       run: |
         python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt
 
     # ---------------------------------------------------------
-    # Install correct MinGW toolchain for Qt 6.10 (GCC 14.x)
+    # Detect and install correct MinGW version
     # ---------------------------------------------------------
-    - name: Install MinGW 14.x toolchain
+    - name: Detect and install MinGW toolchain
+      shell: pwsh
       run: |
-        python -m aqt install-tool windows desktop tools_mingw1400_64 -O C:\Qt
+        Write-Host "Listing available MinGW tools..."
+        python -m aqt list-tool windows desktop | Select-String "mingw"
+
+        $tools = python -m aqt list-tool windows desktop `
+          | Select-String "mingw" `
+          | ForEach-Object { $_.ToString().Trim() }
+
+        if (-not $tools) {
+          throw "No MinGW tools found from aqt list-tool output."
+        }
+
+        $mingw = $tools[-1]   # pick latest available
+
+        Write-Host "Installing detected MinGW toolchain: $mingw"
+        python -m aqt install-tool windows desktop $mingw -O C:\Qt
+
+        "$mingw" | Out-File C:\Qt\mingw-tool-name.txt
 
     # ---------------------------------------------------------
-    # Install modules required by your CMakeLists.txt
+    # Install Qt modules required by your CMakeLists
     # ---------------------------------------------------------
     - name: Install Qt modules
       run: |
@@ -47,15 +64,16 @@ jobs:
         python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt --modules qtshadertools
 
     # ---------------------------------------------------------
-    # PATH setup
+    # PATH setup using detected MinGW name
     # ---------------------------------------------------------
     - name: Add Qt and MinGW to PATH
       shell: pwsh
       run: |
+        $mingw = Get-Content C:\Qt\mingw-tool-name.txt
         "C:\Qt\6.10.0\mingw_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        "C:\Qt\Tools\mingw1400_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        "C:\Qt\Tools\$mingw\bin"     | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-    - name: Verify compilers and Qt tools
+    - name: Verify compiler and Qt tools
       run: |
         where g++
         g++ --version
@@ -66,15 +84,17 @@ jobs:
         dir C:\Qt\6.10.0\mingw_64\lib\cmake
 
     # ---------------------------------------------------------
-    # Configure CMake (force correct compiler + Qt6_DIR)
+    # Configure CMake
     # ---------------------------------------------------------
     - name: Configure CMake
-      run: >
-        cmake -S . -B build -G "MinGW Makefiles"
-        -DCMAKE_C_COMPILER="C:/Qt/Tools/mingw1400_64/bin/gcc.exe"
-        -DCMAKE_CXX_COMPILER="C:/Qt/Tools/mingw1400_64/bin/g++.exe"
-        -DQt6_DIR="C:/Qt/6.10.0/mingw_64/lib/cmake/Qt6"
-        -DCMAKE_BUILD_TYPE=Release
+      shell: pwsh
+      run: |
+        $mingw = Get-Content C:\Qt\mingw-tool-name.txt
+        cmake -S . -B build -G "MinGW Makefiles" `
+          -DCMAKE_C_COMPILER="C:/Qt/Tools/$mingw/bin/gcc.exe" `
+          -DCMAKE_CXX_COMPILER="C:/Qt/Tools/$mingw/bin/g++.exe" `
+          -DQt6_DIR="C:/Qt/6.10.0/mingw_64/lib/cmake/Qt6" `
+          -DCMAKE_BUILD_TYPE=Release
 
     # ---------------------------------------------------------
     # Build
@@ -93,7 +113,7 @@ jobs:
     # ---------------------------------------------------------
     # Artifact output
     # ---------------------------------------------------------
-    - name: Upload portable build artifact
+    - name: Upload portable artifact
       uses: actions/upload-artifact@v4
       with:
         name: FinixPlayer-Windows-Qt610
