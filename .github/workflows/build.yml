@@ -118,3 +118,4 @@ jobs:
       with:
         name: FinixPlayer-Windows-Qt610
         path: build/**
+
