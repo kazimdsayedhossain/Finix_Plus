@@ -25,12 +25,12 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.10.0'
+          version: '6.8.1'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_mingw'
           modules: 'qtmultimedia qtshadertools qt5compat'
-          cache: false  # Disable cache to ensure Qt 6.10 is installed
+          cache: true
 
       - name: Verify Setup
         shell: pwsh
@@ -43,7 +43,6 @@ jobs:
           Write-Host "`nMake Version:"
           mingw32-make --version
           Write-Host "`nQt6_DIR: $env:Qt6_DIR"
-          Write-Host "`nPATH: $env:PATH"
 
       - name: Download yt-dlp
         shell: pwsh
