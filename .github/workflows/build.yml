@@ -1,4 +1,4 @@
-name: Build Windows (Simple)
+name: Build Windows (Simple & Reliable)
 
 on:
   push:
@@ -16,64 +16,89 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+          version: 12.2.0
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.1'
+          version: '6.10.0'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_mingw'
-          modules: 'qtmultimedia qtshadertools qt5compat'
-          cache: true
-          set-env: true  # Automatically set environment variables
+          modules: 'qtmultimedia qtshadertools'
+          cache: false  # Disable cache to ensure Qt 6.10 is installed
+
+      - name: Verify Setup
+        shell: pwsh
+        run: |
+          Write-Host "=== Verifying Installation ==="
+          Write-Host "GCC Version:"
+          gcc --version
+          Write-Host "`nG++ Version:"
+          g++ --version
+          Write-Host "`nMake Version:"
+          mingw32-make --version
+          Write-Host "`nQt6_DIR: $env:Qt6_DIR"
+          Write-Host "`nPATH: $env:PATH"
 
       - name: Download yt-dlp
         shell: pwsh
         run: |
+          Write-Host "Downloading yt-dlp..."
           Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp.exe"
+          Write-Host "✓ Downloaded yt-dlp.exe"
 
-      - name: Build with Qt CMake
+      - name: Configure with CMake
         shell: pwsh
         run: |
-          # Use Qt's qmake to find the right compiler
-          $qmake = (Get-Command qmake).Source
-          $qtDir = Split-Path (Split-Path $qmake -Parent) -Parent
-          $mingwBin = "$qtDir\bin"
-          
-          Write-Host "Qt Directory: $qtDir"
-          Write-Host "Adding to PATH: $mingwBin"
-          $env:PATH = "$mingwBin;$env:PATH"
-          
-          # Verify compiler
-          Write-Host "`nCompiler info:"
-          gcc --version
-          
-          # Build
           mkdir build
           cd build
-          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release -j $env:NUMBER_OF_PROCESSORS
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
 
-      - name: Deploy Qt
+      - name: Build
         shell: pwsh
         run: |
           cd build
-          windeployqt --qmldir .. --release FinixPlayer.exe
+          mingw32-make -j$env:NUMBER_OF_PROCESSORS
 
-      - name: Package
+      - name: Deploy Qt Dependencies
+        shell: pwsh
+        run: |
+          cd build
+          & "${env:Qt6_DIR}/../../../bin/windeployqt.exe" --qmldir .. --release FinixPlayer.exe
+
+      - name: Package Release
         shell: pwsh
         run: |
           $dist = "FinixPlayer-Windows"
           New-Item -ItemType Directory -Path $dist
+          
+          # Copy executable and yt-dlp
           Copy-Item build/FinixPlayer.exe $dist/
           Copy-Item yt-dlp.exe $dist/
+          
+          # Copy all DLLs
           Copy-Item build/*.dll $dist/ -ErrorAction SilentlyContinue
+          
+          # Copy Qt directories
           Copy-Item build/plugins $dist/ -Recurse -ErrorAction SilentlyContinue
           Copy-Item build/qml $dist/ -Recurse -ErrorAction SilentlyContinue
+          
+          # Copy docs
           Copy-Item README.md $dist/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE $dist/ -ErrorAction SilentlyContinue
+          
+          # Copy assets
           Copy-Item assests $dist/ -Recurse -ErrorAction SilentlyContinue
+          
+          # Create ZIP
           Compress-Archive -Path $dist -DestinationPath "${dist}.zip"
+          
+          Write-Host "✓ Package created: ${dist}.zip"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
