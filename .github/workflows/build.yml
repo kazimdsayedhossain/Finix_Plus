@@ -43,11 +43,18 @@ jobs:
         g++ --version
         where windeployqt
 
+    - name: List Qt CMake directory (debug)
+      run: |
+        dir "${{ runner.temp }}\Qt\6.8.1\mingw_64\lib\cmake"
+
+
     - name: Configure CMake
       run: >
         cmake -S . -B build -G "MinGW Makefiles"
         -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_PREFIX_PATH="${{ runner.temp }}\Qt\6.8.1\mingw_64"
+        -DCMAKE_PREFIX_PATH="${{ runner.temp }}/Qt/6.8.1/mingw_64"
+        -DQt6_DIR="${{ runner.temp }}/Qt/6.8.1/mingw_64/lib/cmake/Qt6"
+
 
     - name: Build project
       run: |
