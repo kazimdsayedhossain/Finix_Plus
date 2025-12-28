@@ -22,17 +22,35 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install aqtinstall
 
-    - name: Install Qt 6.8.1 with required modules
+    - name: Install Qt 6.8.1 base
       run: |
-        python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O ${{ runner.temp }}\Qt --modules qtdeclarative qtmultimedia qt5compat qtshadertools
-        python -m aqt install-tool windows desktop tools_mingw -O ${{ runner.temp }}\Qt
+        python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O C:\Qt
 
-    - name: Add Qt and MinGW to PATH (PowerShell compatible)
+    - name: List available Qt modules (debug)
+      run: |
+        python -m aqt list-qt windows desktop --modules 6.8.1 win64_mingw
+
+    - name: Install extra Qt modules if available
       shell: pwsh
       run: |
-        "${{ runner.temp }}\Qt\6.8.1\mingw_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        $modules = @("qtdeclarative","qtmultimedia","qt5compat","qtshadertools")
 
-        Get-ChildItem -Path "${{ runner.temp }}\Qt\Tools" -Directory -Filter "mingw*" |
+        foreach ($m in $modules) {
+          try {
+            Write-Host "Trying to install module $m"
+            python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O C:\Qt --modules $m
+          }
+          catch {
+            Write-Warning "Module $m not available on mirror; skipping"
+          }
+        }
+
+    - name: Add Qt and MinGW to PATH
+      shell: pwsh
+      run: |
+        "C:\Qt\6.8.1\mingw_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+        Get-ChildItem -Path "C:\Qt\Tools" -Directory -Filter "mingw*" |
           ForEach-Object {
             "$($_.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
@@ -43,18 +61,15 @@ jobs:
         g++ --version
         where windeployqt
 
-    - name: List Qt CMake directory (debug)
+    - name: Verify Qt CMake folder exists
       run: |
-        dir "${{ runner.temp }}\Qt\6.8.1\mingw_64\lib\cmake"
+        dir C:\Qt\6.8.1\mingw_64\lib\cmake
 
-
-    - name: Configure CMake
+    - name: Configure CMake with explicit Qt6_DIR
       run: >
         cmake -S . -B build -G "MinGW Makefiles"
         -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_PREFIX_PATH="${{ runner.temp }}/Qt/6.8.1/mingw_64"
-        -DQt6_DIR="${{ runner.temp }}/Qt/6.8.1/mingw_64/lib/cmake/Qt6"
-
+        -DQt6_DIR="C:/Qt/6.8.1/mingw_64/lib/cmake/Qt6"
 
     - name: Build project
       run: |
