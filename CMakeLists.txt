@@ -24,7 +24,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Find required Qt6 modules
-find_package(Qt6 6.8 REQUIRED COMPONENTS
+find_package(Qt6 6.10 REQUIRED COMPONENTS
     Core
     Quick
     Multimedia
@@ -143,6 +143,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "  Source Files: ${PROJECT_SOURCES}")
     message(STATUS "===========================================")
 endif()
+
 
 
 
