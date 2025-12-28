@@ -1,4 +1,4 @@
-name: Build Windows Release (Optimized)
+name: Build Windows (Simple & Reliable)
 
 on:
   push:
@@ -6,298 +6,102 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      create_release:
-        description: 'Create a GitHub release'
-        required: false
-        default: 'false'
 
 jobs:
-  build-windows-mingw:
-    name: Windows MinGW Build
+  build:
+    name: Windows Build
     runs-on: windows-latest
 
-    defaults:
-      run:
-        shell: pwsh
-
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
 
-      - name: Setup MinGW 13
+      - name: Install MinGW
         uses: egor-tensin/setup-mingw@v2
         with:
           platform: x64
+          version: 12.2.0
 
-      - name: Install Qt 6.8.1
+      - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.1'
+          host: 'windows'
+          target: 'desktop'
           arch: 'win64_mingw'
           modules: 'qtmultimedia qtshadertools'
           cache: true
-          cache-key-prefix: 'qt-6.8.1-mingw'
-          setup-python: false
+
+      - name: Verify Setup
+        shell: pwsh
+        run: |
+          Write-Host "=== Verifying Installation ==="
+          Write-Host "GCC Version:"
+          gcc --version
+          Write-Host "`nG++ Version:"
+          g++ --version
+          Write-Host "`nMake Version:"
+          mingw32-make --version
+          Write-Host "`nQt6_DIR: $env:Qt6_DIR"
+          Write-Host "`nPATH: $env:PATH"
 
       - name: Download yt-dlp
+        shell: pwsh
         run: |
           Write-Host "Downloading yt-dlp..."
           Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp.exe"
-          if (Test-Path "yt-dlp.exe") {
-            Write-Host "✓ yt-dlp.exe downloaded successfully"
-            $size = (Get-Item "yt-dlp.exe").Length / 1MB
-            Write-Host "File size: $([math]::Round($size, 2)) MB"
-          } else {
-            Write-Error "Failed to download yt-dlp.exe"
-            exit 1
-          }
+          Write-Host "✓ Downloaded yt-dlp.exe"
 
-      - name: Configure CMake
+      - name: Configure with CMake
+        shell: pwsh
         run: |
-          Write-Host "Cleaning build directory..."
-          if (Test-Path build) { 
-            Remove-Item -Recurse -Force build 
-          }
-          
-          Write-Host "Creating build directory..."
-          New-Item -ItemType Directory -Name build | Out-Null
-          
+          mkdir build
           cd build
-          
-          Write-Host "Configuring CMake..."
-          cmake .. -G "MinGW Makefiles" `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
-            -DCMAKE_C_COMPILER=gcc `
-            -DCMAKE_CXX_COMPILER=g++
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "CMake configuration failed"
-            exit 1
-          }
-          
-          Write-Host "✓ CMake configuration successful"
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
 
-      - name: Build Project
+      - name: Build
+        shell: pwsh
         run: |
           cd build
-          
-          Write-Host "Building Finix Player..."
           mingw32-make -j$env:NUMBER_OF_PROCESSORS
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Build failed"
-            exit 1
-          }
-          
-          Write-Host "✓ Build successful"
-          
-          # Verify executable exists
-          if (Test-Path "FinixPlayer.exe") {
-            Write-Host "✓ FinixPlayer.exe created successfully"
-            $size = (Get-Item "FinixPlayer.exe").Length / 1MB
-            Write-Host "Executable size: $([math]::Round($size, 2)) MB"
-          } else {
-            Write-Error "FinixPlayer.exe not found after build"
-            exit 1
-          }
 
       - name: Deploy Qt Dependencies
+        shell: pwsh
         run: |
           cd build
-          
-          Write-Host "Deploying Qt dependencies..."
-          
-          $windeployqt = "${env:Qt6_DIR}\..\..\..\bin\windeployqt.exe"
-          
-          if (Test-Path $windeployqt) {
-            Write-Host "Using windeployqt: $windeployqt"
-            & $windeployqt --qmldir ../. --release FinixPlayer.exe
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✓ Qt dependencies deployed successfully"
-            } else {
-              Write-Warning "windeployqt returned non-zero exit code, but continuing..."
-            }
-          } else {
-            Write-Error "windeployqt.exe not found at $windeployqt"
-            exit 1
-          }
+          & "${env:Qt6_DIR}/../../../bin/windeployqt.exe" --qmldir .. --release FinixPlayer.exe
 
-      - name: Copy Additional Files
+      - name: Package Release
+        shell: pwsh
         run: |
-          cd build
+          $dist = "FinixPlayer-Windows"
+          New-Item -ItemType Directory -Path $dist
           
-          Write-Host "Copying additional files..."
+          # Copy executable and yt-dlp
+          Copy-Item build/FinixPlayer.exe $dist/
+          Copy-Item yt-dlp.exe $dist/
           
-          # Copy yt-dlp
-          Copy-Item -Path ../yt-dlp.exe -Destination . -Force
-          Write-Host "✓ Copied yt-dlp.exe"
+          # Copy all DLLs
+          Copy-Item build/*.dll $dist/ -ErrorAction SilentlyContinue
           
-          # Copy README and LICENSE
-          Copy-Item -Path ../README.md -Destination . -Force -ErrorAction SilentlyContinue
-          Write-Host "✓ Copied README.md"
+          # Copy Qt directories
+          Copy-Item build/plugins $dist/ -Recurse -ErrorAction SilentlyContinue
+          Copy-Item build/qml $dist/ -Recurse -ErrorAction SilentlyContinue
           
-          Copy-Item -Path ../LICENSE -Destination . -Force -ErrorAction SilentlyContinue
-          Write-Host "✓ Copied LICENSE"
-          
-          # Copy assets if they exist
-          if (Test-Path ../assests) {
-            Copy-Item -Path ../assests -Destination . -Recurse -Force
-            Write-Host "✓ Copied assets directory"
-          }
-
-      - name: Create Distribution Package
-        run: |
-          Write-Host "Creating distribution package..."
-          
-          $distDir = "FinixPlayer-Windows-x64"
-          
-          # Create distribution directory
-          New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-          
-          # Copy all necessary files from build directory
-          Copy-Item -Path build/FinixPlayer.exe -Destination $distDir/ -Force
-          Copy-Item -Path build/yt-dlp.exe -Destination $distDir/ -Force
-          
-          # Copy DLLs
-          Get-ChildItem -Path build -Filter "*.dll" -File | Copy-Item -Destination $distDir/ -Force
-          
-          # Copy Qt plugins and QML directories
-          if (Test-Path build/plugins) {
-            Copy-Item -Path build/plugins -Destination $distDir/ -Recurse -Force
-          }
-          
-          if (Test-Path build/qml) {
-            Copy-Item -Path build/qml -Destination $distDir/ -Recurse -Force
-          }
-          
-          # Copy documentation
-          Copy-Item -Path README.md -Destination $distDir/ -Force -ErrorAction SilentlyContinue
-          Copy-Item -Path LICENSE -Destination $distDir/ -Force -ErrorAction SilentlyContinue
+          # Copy docs
+          Copy-Item README.md $dist/ -ErrorAction SilentlyContinue
+          Copy-Item LICENSE $dist/ -ErrorAction SilentlyContinue
           
           # Copy assets
-          if (Test-Path assests) {
-            Copy-Item -Path assests -Destination $distDir/ -Recurse -Force
-          }
+          Copy-Item assests $dist/ -Recurse -ErrorAction SilentlyContinue
           
-          Write-Host "✓ Distribution files copied"
+          # Create ZIP
+          Compress-Archive -Path $dist -DestinationPath "${dist}.zip"
           
-          # List contents
-          Write-Host "`nDistribution package contents:"
-          Get-ChildItem -Path $distDir -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
-          
-          # Create ZIP archive
-          Write-Host "`nCreating ZIP archive..."
-          Compress-Archive -Path $distDir -DestinationPath "$distDir.zip" -Force
-          
-          if (Test-Path "$distDir.zip") {
-            $size = (Get-Item "$distDir.zip").Length / 1MB
-            Write-Host "✓ ZIP archive created successfully"
-            Write-Host "Archive size: $([math]::Round($size, 2)) MB"
-          } else {
-            Write-Error "Failed to create ZIP archive"
-            exit 1
-          }
+          Write-Host "✓ Package created: ${dist}.zip"
 
-      - name: Upload Build Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FinixPlayer-Windows-x64
-          path: FinixPlayer-Windows-x64.zip
-          retention-days: 30
-          if-no-files-found: error
-
-      - name: Upload Build Log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: build/**/*.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-  create-github-release:
-    name: Create GitHub Release
-    needs: build-windows-mingw
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_dispatch' && 
-      github.event.inputs.create_release == 'true' ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
-    
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: FinixPlayer-Windows-x64
-          path: ./release-files
-
-      - name: Generate Release Tag
-        id: tag
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-          else
-            TAG_NAME="v1.0.0-$(date +%Y%m%d-%H%M%S)"
-          fi
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "Release tag: $TAG_NAME"
-
-      - name: Create Release Notes
-        id: release_notes
-        run: |
-          cat > release_notes.md << 'EOF'
-          ## 🎵 Finix Player Release
-          
-          ### Features
-          - 🎚️ Real-time audio effects (Gain, Balance, Speed, Fade In)
-          - 🎬 YouTube audio streaming
-          - 📚 Smart music library with metadata
-          - 🎨 Modern dark-themed UI
-          - 🎵 Multiple format support (MP3, FLAC, OGG, WAV, M4A, AAC)
-          
-          ### Installation
-          1. Download `FinixPlayer-Windows-x64.zip`
-          2. Extract to your desired location
-          3. Run `FinixPlayer.exe`
-          
-          ### Requirements
-          - Windows 10/11 (64-bit)
-          - No additional dependencies required (all bundled)
-          
-          ### What's Included
-          - FinixPlayer executable
-          - yt-dlp for YouTube streaming
-          - All required Qt libraries
-          
-          Built with Qt 6.8.1 and C++17
-          EOF
-          
-          echo "Release notes created"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.tag_name }}
-          name: Finix Player ${{ steps.tag.outputs.tag_name }}
-          body_path: release_notes.md
-          files: |
-            ./release-files/*.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: FinixPlayer-Windows
+          path: FinixPlayer-Windows.zip
