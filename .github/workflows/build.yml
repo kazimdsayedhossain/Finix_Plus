@@ -26,34 +26,26 @@ jobs:
       run: |
         python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O C:\Qt
 
-    - name: List available Qt modules (debug)
+    - name: Install MinGW toolchain (required)
       run: |
-        python -m aqt list-qt windows desktop --modules 6.8.1 win64_mingw
+        python -m aqt install-tool windows desktop tools_mingw -O C:\Qt
 
-    - name: Install extra Qt modules if available
+    - name: Add Qt and MinGW to PATH (safe even if Tools missing)
       shell: pwsh
       run: |
-        $modules = @("qtdeclarative","qtmultimedia","qt5compat","qtshadertools")
-
-        foreach ($m in $modules) {
-          try {
-            Write-Host "Trying to install module $m"
-            python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O C:\Qt --modules $m
-          }
-          catch {
-            Write-Warning "Module $m not available on mirror; skipping"
-          }
-        }
-
-    - name: Add Qt and MinGW to PATH
-      shell: pwsh
-      run: |
+        # Qt binaries
         "C:\Qt\6.8.1\mingw_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-        Get-ChildItem -Path "C:\Qt\Tools" -Directory -Filter "mingw*" |
-          ForEach-Object {
-            "$($_.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          }
+        # Add MinGW toolchain if present
+        if (Test-Path "C:\Qt\Tools") {
+          Get-ChildItem -Path "C:\Qt\Tools" -Directory -Filter "mingw*" |
+            ForEach-Object {
+              "$($_.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+        }
+        else {
+          Write-Warning "C:\\Qt\\Tools not found — continuing without Tools path"
+        }
 
     - name: Verify compiler and Qt tools
       run: |
