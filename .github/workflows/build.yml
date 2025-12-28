@@ -25,12 +25,12 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.1'
+          version: '6.10.0'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_mingw'
           modules: 'qtmultimedia qtshadertools'
-          cache: true
+          cache: false  # Disable cache to ensure Qt 6.10 is installed
 
       - name: Verify Setup
         shell: pwsh
