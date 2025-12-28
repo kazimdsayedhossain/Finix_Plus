@@ -7,6 +7,10 @@ project(FinixPlayer
     DESCRIPTION "Modern Qt 6 audio player"
     LANGUAGES CXX
 )
+if(MINGW)
+    add_compile_options(-fno-stack-protector)
+    add_link_options(-fno-stack-protector)
+endif()
 
 # ----------------------------------------------------------------------------
 # C++ Standard Requirements
@@ -142,4 +146,5 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "  Source Files: ${PROJECT_SOURCES}")
     message(STATUS "===========================================")
 endif()
+
 
