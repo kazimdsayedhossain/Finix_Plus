@@ -1,4 +1,4 @@
-name: Build Windows (Simple & Reliable)
+name: Build Windows (Qt Compatible MinGW)
 
 on:
   push:
@@ -16,92 +16,345 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install MinGW
-        uses: egor-tensin/setup-mingw@v2
-        with:
-          platform: x64
-          version: 12.2.0
-
-      - name: Install Qt
+      # DO NOT install separate MinGW - use Qt's bundled version
+      - name: Install Qt with MinGW
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.10.0'
+          version: '6.8.1'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_mingw'
-          modules: 'qtmultimedia qtshadertools'
-          cache: false  # Disable cache to ensure Qt 6.10 is installed
-
-      - name: Verify Setup
+          modules: 'qtmultimedia qtshadertools qt5compat'
+          cache: true
+          # Explicitly install MinGW tools compatible with Qt 6.8.1
+          tools: 'tools_mingw90 qt.tools.win64_mingw1120'
+          
+      - name: List Qt Installation
         shell: pwsh
         run: |
-          Write-Host "=== Verifying Installation ==="
-          Write-Host "GCC Version:"
+          Write-Host "=== Qt Installation Debug ==="
+          Write-Host "Environment variables:"
+          Get-ChildItem env: | Where-Object { $_.Name -like "*Qt*" } | Format-Table Name, Value -AutoSize
+          
+          Write-Host "`nSearching for Qt installation..."
+          $qtLocations = @(
+            "D:\a\Finix_Plus\Qt",
+            "$env:RUNNER_WORKSPACE\Qt", 
+            "C:\Qt",
+            "$env:IQTA_TOOLS"
+          )
+          
+          foreach ($loc in $qtLocations) {
+            if ($loc -and (Test-Path $loc)) {
+              Write-Host "`nFound Qt at: $loc"
+              Get-ChildItem $loc -Directory | Select-Object Name | Format-Table -AutoSize
+              
+              if (Test-Path "$loc\Tools") {
+                Write-Host "Tools directory contents:"
+                Get-ChildItem "$loc\Tools" -Directory | Select-Object Name | Format-Table -AutoSize
+              }
+              
+              if (Test-Path "$loc\6.8.1") {
+                Write-Host "6.8.1 directory contents:"
+                Get-ChildItem "$loc\6.8.1" -Directory | Select-Object Name | Format-Table -AutoSize
+              }
+            }
+          }
+
+      - name: Setup Qt's MinGW Compiler
+        shell: pwsh
+        run: |
+          Write-Host "=== Locating Qt's MinGW Compiler ==="
+          
+          # Find Qt installation directory
+          $qtRoot = $null
+          
+          # Method 1: Check Qt6_DIR environment variable
+          if ($env:Qt6_DIR) {
+            Write-Host "Found Qt6_DIR: $env:Qt6_DIR"
+            $qtRoot = Split-Path (Split-Path (Split-Path $env:Qt6_DIR -Parent) -Parent) -Parent
+          }
+          
+          # Method 2: Search in D:\a (GitHub Actions workspace)
+          if (-not $qtRoot) {
+            Write-Host "Qt6_DIR not set, searching in D:\a\..."
+            $qtDirs = Get-ChildItem -Path "D:\a" -Directory -Recurse -Filter "Qt" -ErrorAction SilentlyContinue | 
+              Where-Object { Test-Path "$($_.FullName)\6.8.1" } | 
+              Select-Object -First 1
+            
+            if ($qtDirs) {
+              $qtRoot = $qtDirs.FullName
+              Write-Host "Found Qt at: $qtRoot"
+            }
+          }
+          
+          # Method 3: Use Qt action's default location
+          if (-not $qtRoot) {
+            Write-Host "Checking default Qt installation path..."
+            $defaultPaths = @(
+              "D:\a\Finix_Plus\Qt",
+              "$env:RUNNER_WORKSPACE\Qt",
+              "C:\Qt"
+            )
+            
+            foreach ($path in $defaultPaths) {
+              if (Test-Path "$path\6.8.1") {
+                $qtRoot = $path
+                Write-Host "Found Qt at: $qtRoot"
+                break
+              }
+            }
+          }
+          
+          if (-not $qtRoot) {
+            Write-Host "ERROR: Could not locate Qt installation!"
+            Write-Host "`nDebug Information:"
+            Write-Host "Qt6_DIR = $env:Qt6_DIR"
+            Write-Host "RUNNER_WORKSPACE = $env:RUNNER_WORKSPACE"
+            Write-Host "Available Qt directories:"
+            Get-ChildItem -Path "D:\a" -Directory -Recurse -Filter "Qt" -ErrorAction SilentlyContinue | 
+              Select-Object FullName | Format-Table -AutoSize
+            exit 1
+          }
+          
+          Write-Host "Qt Root: $qtRoot"
+          
+          # Search for MinGW in Tools directory
+          $mingwCandidates = @(
+            "$qtRoot\Tools\mingw1120_64\bin",
+            "$qtRoot\Tools\mingw_64\bin",
+            "$qtRoot\Tools\mingw90\bin",
+            "$qtRoot\6.8.1\mingw_64\bin"  # Sometimes MinGW is in version folder
+          )
+          
+          $mingwPath = $null
+          foreach ($candidate in $mingwCandidates) {
+            Write-Host "Checking: $candidate"
+            if (Test-Path "$candidate\gcc.exe") {
+              $mingwPath = $candidate
+              Write-Host "✓ Found MinGW at: $mingwPath"
+              break
+            }
+          }
+          
+          if (-not $mingwPath) {
+            Write-Host "ERROR: Could not find Qt's MinGW compiler!"
+            Write-Host "`nSearched locations:"
+            $mingwCandidates | ForEach-Object { Write-Host "  - $_" }
+            
+            Write-Host "`nAvailable directories in Qt installation:"
+            if (Test-Path "$qtRoot\Tools") {
+              Write-Host "Tools directory:"
+              Get-ChildItem "$qtRoot\Tools" -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+            }
+            if (Test-Path "$qtRoot\6.8.1") {
+              Write-Host "Version directory:"
+              Get-ChildItem "$qtRoot\6.8.1" -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+            }
+            exit 1
+          }
+          
+          # Set Qt6_DIR if not already set (for CMake)
+          if (-not $env:Qt6_DIR) {
+            $qt6CMake = "$qtRoot\6.8.1\mingw_64\lib\cmake\Qt6"
+            if (Test-Path $qt6CMake) {
+              $env:Qt6_DIR = $qt6CMake
+              echo "Qt6_DIR=$qt6CMake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              Write-Host "Set Qt6_DIR to: $qt6CMake"
+            }
+          }
+          
+          # Add to PATH (prepend to ensure it's used first)
+          $env:PATH = "$mingwPath;$env:PATH"
+          echo "$mingwPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          
+          Write-Host "`n=== MinGW Added to PATH ==="
+          Write-Host "MinGW Path: $mingwPath"
+
+      - name: Verify Compiler Setup
+        shell: pwsh
+        run: |
+          Write-Host "=== Verifying Compiler Setup ==="
+          
+          Write-Host "`nGCC Location:"
+          $gccPath = (Get-Command gcc).Source
+          Write-Host $gccPath
+          
+          Write-Host "`nGCC Version:"
           gcc --version
+          
           Write-Host "`nG++ Version:"
           g++ --version
+          
           Write-Host "`nMake Version:"
           mingw32-make --version
-          Write-Host "`nQt6_DIR: $env:Qt6_DIR"
-          Write-Host "`nPATH: $env:PATH"
+          
+          Write-Host "`nQt CMake Directory:"
+          Write-Host $env:Qt6_DIR
+          
+          # Verify we're NOT using Chocolatey's MinGW
+          if ($gccPath -like "*chocolatey*") {
+            Write-Host "`nWARNING: Using Chocolatey's MinGW instead of Qt's!"
+            Write-Host "This will cause compilation errors."
+            exit 1
+          } else {
+            Write-Host "`n✓ Using Qt's MinGW compiler (correct)"
+          }
 
       - name: Download yt-dlp
         shell: pwsh
         run: |
           Write-Host "Downloading yt-dlp..."
           Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp.exe"
-          Write-Host "✓ Downloaded yt-dlp.exe"
+          if (Test-Path "yt-dlp.exe") {
+            Write-Host "✓ Downloaded yt-dlp.exe ($((Get-Item yt-dlp.exe).Length) bytes)"
+          } else {
+            Write-Host "ERROR: Failed to download yt-dlp.exe"
+            exit 1
+          }
 
       - name: Configure with CMake
         shell: pwsh
         run: |
-          mkdir build
+          Write-Host "=== Configuring Project with CMake ==="
+          
+          # Verify Qt6_DIR is set
+          if (-not $env:Qt6_DIR) {
+            Write-Host "ERROR: Qt6_DIR is not set!"
+            Write-Host "Cannot proceed with CMake configuration"
+            exit 1
+          }
+          
+          Write-Host "Using Qt6_DIR: $env:Qt6_DIR"
+          
+          New-Item -ItemType Directory -Path "build" -Force | Out-Null
           cd build
-          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+          
+          # Run CMake with explicit paths
+          cmake .. `
+            -G "MinGW Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DCMAKE_C_COMPILER="gcc" `
+            -DCMAKE_CXX_COMPILER="g++"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "`nERROR: CMake configuration failed"
+            Write-Host "Checking CMake output above for details..."
+            exit 1
+          }
+          Write-Host "`n✓ CMake configuration successful"
 
-      - name: Build
+      - name: Build Project
         shell: pwsh
         run: |
+          Write-Host "=== Building Project ==="
           cd build
-          mingw32-make -j$env:NUMBER_OF_PROCESSORS
+          
+          $cores = $env:NUMBER_OF_PROCESSORS
+          if (-not $cores) { $cores = 2 }
+          Write-Host "Building with $cores parallel jobs..."
+          
+          mingw32-make -j $cores
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Build failed"
+            exit 1
+          }
+          
+          if (Test-Path "FinixPlayer.exe") {
+            $exeSize = (Get-Item "FinixPlayer.exe").Length
+            Write-Host "✓ Build successful - FinixPlayer.exe ($exeSize bytes)"
+          } else {
+            Write-Host "ERROR: FinixPlayer.exe was not created"
+            exit 1
+          }
 
       - name: Deploy Qt Dependencies
         shell: pwsh
         run: |
+          Write-Host "=== Deploying Qt Dependencies ==="
           cd build
-          & "${env:Qt6_DIR}/../../../bin/windeployqt.exe" --qmldir .. --release FinixPlayer.exe
+          
+          $windeployqt = "$env:Qt6_DIR/../../../bin/windeployqt.exe"
+          if (-not (Test-Path $windeployqt)) {
+            Write-Host "ERROR: windeployqt.exe not found at $windeployqt"
+            exit 1
+          }
+          
+          Write-Host "Running windeployqt..."
+          & $windeployqt --qmldir .. --release FinixPlayer.exe
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARNING: windeployqt reported errors, but continuing..."
+          }
+          Write-Host "✓ Qt dependencies deployed"
 
       - name: Package Release
         shell: pwsh
         run: |
+          Write-Host "=== Packaging Release ==="
+          
           $dist = "FinixPlayer-Windows"
-          New-Item -ItemType Directory -Path $dist
+          New-Item -ItemType Directory -Path $dist -Force | Out-Null
           
-          # Copy executable and yt-dlp
-          Copy-Item build/FinixPlayer.exe $dist/
-          Copy-Item yt-dlp.exe $dist/
+          # Copy executable
+          Copy-Item "build/FinixPlayer.exe" "$dist/" -Force
+          Write-Host "✓ Copied FinixPlayer.exe"
           
-          # Copy all DLLs
-          Copy-Item build/*.dll $dist/ -ErrorAction SilentlyContinue
+          # Copy yt-dlp
+          Copy-Item "yt-dlp.exe" "$dist/" -Force
+          Write-Host "✓ Copied yt-dlp.exe"
           
-          # Copy Qt directories
-          Copy-Item build/plugins $dist/ -Recurse -ErrorAction SilentlyContinue
-          Copy-Item build/qml $dist/ -Recurse -ErrorAction SilentlyContinue
+          # Copy DLLs
+          Get-ChildItem "build/*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName "$dist/" -Force
+          }
+          Write-Host "✓ Copied DLL files"
           
-          # Copy docs
-          Copy-Item README.md $dist/ -ErrorAction SilentlyContinue
-          Copy-Item LICENSE $dist/ -ErrorAction SilentlyContinue
+          # Copy Qt plugin directories
+          if (Test-Path "build/plugins") {
+            Copy-Item "build/plugins" "$dist/" -Recurse -Force
+            Write-Host "✓ Copied plugins directory"
+          }
+          
+          if (Test-Path "build/qml") {
+            Copy-Item "build/qml" "$dist/" -Recurse -Force
+            Write-Host "✓ Copied qml directory"
+          }
+          
+          # Copy documentation
+          if (Test-Path "README.md") {
+            Copy-Item "README.md" "$dist/" -Force
+            Write-Host "✓ Copied README.md"
+          }
+          
+          if (Test-Path "LICENSE") {
+            Copy-Item "LICENSE" "$dist/" -Force
+            Write-Host "✓ Copied LICENSE"
+          }
           
           # Copy assets
-          Copy-Item assests $dist/ -Recurse -ErrorAction SilentlyContinue
+          if (Test-Path "assests") {
+            Copy-Item "assests" "$dist/" -Recurse -Force
+            Write-Host "✓ Copied assets directory"
+          }
           
-          # Create ZIP
-          Compress-Archive -Path $dist -DestinationPath "${dist}.zip"
+          # Create ZIP archive
+          Compress-Archive -Path $dist -DestinationPath "${dist}.zip" -Force
           
-          Write-Host "✓ Package created: ${dist}.zip"
+          $zipSize = (Get-Item "${dist}.zip").Length / 1MB
+          Write-Host "`n✓ Package created: ${dist}.zip ($([math]::Round($zipSize, 2)) MB)"
+          
+          # List contents
+          Write-Host "`nPackage contents:"
+          Get-ChildItem $dist -Recurse -File | ForEach-Object {
+            Write-Host "  - $($_.FullName.Replace("$dist\", ""))"
+          }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FinixPlayer-Windows
           path: FinixPlayer-Windows.zip
+          if-no-files-found: error
