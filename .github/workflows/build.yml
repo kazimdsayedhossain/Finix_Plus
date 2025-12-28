@@ -22,19 +22,16 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install aqtinstall
 
-    - name: Install Qt 6.8.1 and MinGW toolchain
+    - name: Install Qt 6.8.1 with required modules
       run: |
-        python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O ${{ runner.temp }}\Qt --modules qtmultimedia
-
+        python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O ${{ runner.temp }}\Qt --modules qtdeclarative qtmultimedia qt5compat qtshadertools
         python -m aqt install-tool windows desktop tools_mingw -O ${{ runner.temp }}\Qt
 
     - name: Add Qt and MinGW to PATH (PowerShell compatible)
       shell: pwsh
       run: |
-        # Qt binaries
         "${{ runner.temp }}\Qt\6.8.1\mingw_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-        # detect MinGW tools folder automatically
         Get-ChildItem -Path "${{ runner.temp }}\Qt\Tools" -Directory -Filter "mingw*" |
           ForEach-Object {
             "$($_.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
