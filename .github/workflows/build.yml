@@ -24,7 +24,8 @@ jobs:
 
     - name: Install Qt 6.8.1 and MinGW toolchain
       run: |
-        python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O ${{ runner.temp }}\Qt
+        python -m aqt install-qt windows desktop 6.8.1 win64_mingw -O ${{ runner.temp }}\Qt --modules qtmultimedia
+
         python -m aqt install-tool windows desktop tools_mingw -O ${{ runner.temp }}\Qt
 
     - name: Add Qt and MinGW to PATH (PowerShell compatible)
