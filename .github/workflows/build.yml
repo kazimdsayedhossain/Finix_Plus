@@ -2,120 +2,367 @@ name: Windows Qt 6.10 MinGW Build
 
 on:
   push:
+    branches: [ main, master, develop ]
   pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   build:
     runs-on: windows-latest
+    
+    env:
+      QT_VERSION: '6.10.0'
+      QT_ARCH: 'win64_mingw'
+      QT_MODULES: 'qtdeclarative qtmultimedia qt5compat qtshadertools'
 
     steps:
+    # ==================== CHECKOUT ====================
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
 
-    - name: Install Python (for aqtinstall)
+    # ==================== SETUP PYTHON ====================
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: '3.11'
+        cache: 'pip'
 
+    # ==================== INSTALL AQTINSTALL ====================
     - name: Install aqtinstall
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install aqtinstall
+        python -m pip install --upgrade pip setuptools wheel
+        python -m pip install aqtinstall==3.1.*
+        python -m aqt version
 
-    # ---------------------------------------------------------
-    # Install Qt 6.10 base
-    # ---------------------------------------------------------
-    - name: Install Qt 6.10 base (win64_mingw)
+    # ==================== CACHE QT ====================
+    - name: Cache Qt
+      id: cache-qt
+      uses: actions/cache@v4
+      with:
+        path: C:\Qt
+        key: ${{ runner.os }}-Qt-${{ env.QT_VERSION }}-${{ env.QT_ARCH }}-${{ hashFiles('.github/workflows/build.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-Qt-${{ env.QT_VERSION }}-${{ env.QT_ARCH }}-
+          ${{ runner.os }}-Qt-${{ env.QT_VERSION }}-
+
+    # ==================== INSTALL QT BASE ====================
+    - name: Install Qt Base
+      if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
-        python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt
-
-    # ---------------------------------------------------------
-    # Detect and install correct MinGW version
-    # ---------------------------------------------------------
-    - name: Detect and install MinGW toolchain
+        Write-Host "Installing Qt $env:QT_VERSION base..."
+        python -m aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
+          -O C:\Qt `
+          --archives qtbase qtdeclarative qtmultimedia qt5compat qtshadertools
       shell: pwsh
+      continue-on-error: false
+
+    # ==================== INSTALL MINGW ====================
+    - name: Install MinGW Toolchain
+      if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Listing available MinGW tools..."
-        python -m aqt list-tool windows desktop | Select-String "mingw"
+        $tools = python -m aqt list-tool windows desktop tools_mingw
 
-        $tools = python -m aqt list-tool windows desktop `
-          | Select-String "mingw" `
-          | ForEach-Object { $_.ToString().Trim() }
+        Write-Host "Available tools:"
+        Write-Host $tools
 
-        if (-not $tools) {
-          throw "No MinGW tools found from aqt list-tool output."
+        # Try to find the correct MinGW version for Qt 6.10
+        $mingwVersion = "tools_mingw1310"  # MinGW 13.1.0 is typically used with Qt 6.10
+        
+        # Fallback: if specific version not found, use latest
+        if ($tools -notmatch $mingwVersion) {
+          $mingwVersion = ($tools -split "`n" | Select-String "tools_mingw" | Select-Object -Last 1).ToString().Trim()
         }
 
-        $mingw = $tools[-1]   # pick latest available
+        Write-Host "Installing MinGW: $mingwVersion"
+        python -m aqt install-tool windows desktop $mingwVersion -O C:\Qt
 
-        Write-Host "Installing detected MinGW toolchain: $mingw"
-        python -m aqt install-tool windows desktop $mingw -O C:\Qt
-
-        "$mingw" | Out-File C:\Qt\mingw-tool-name.txt
-
-    # ---------------------------------------------------------
-    # Install Qt modules required by your CMakeLists
-    # ---------------------------------------------------------
-    - name: Install Qt modules
-      run: |
-        python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt --modules qtdeclarative
-        python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt --modules qtmultimedia
-        python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt --modules qt5compat
-        python -m aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt --modules qtshadertools
-
-    # ---------------------------------------------------------
-    # PATH setup using detected MinGW name
-    # ---------------------------------------------------------
-    - name: Add Qt and MinGW to PATH
+        # Save MinGW name for later use
+        $mingwVersion | Out-File -FilePath "C:\Qt\mingw-name.txt" -Encoding utf8
       shell: pwsh
-      run: |
-        $mingw = Get-Content C:\Qt\mingw-tool-name.txt
-        "C:\Qt\6.10.0\mingw_64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        "C:\Qt\Tools\$mingw\bin"     | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      continue-on-error: false
 
-    - name: Verify compiler and Qt tools
+    # ==================== SETUP ENVIRONMENT ====================
+    - name: Setup Qt Environment
       run: |
-        where g++
+        # Read MinGW version
+        $mingwName = Get-Content C:\Qt\mingw-name.txt -ErrorAction SilentlyContinue
+        if (-not $mingwName) {
+          # Fallback: find MinGW directory
+          $mingwDir = Get-ChildItem "C:\Qt\Tools" -Directory | Where-Object { $_.Name -like "mingw*" } | Select-Object -First 1
+          if ($mingwDir) {
+            $mingwName = $mingwDir.Name
+          } else {
+            Write-Error "MinGW not found!"
+            exit 1
+          }
+        }
+
+        Write-Host "Using MinGW: $mingwName"
+
+        # Add to PATH
+        $qtBinPath = "C:\Qt\$env:QT_VERSION\mingw_64\bin"
+        $mingwBinPath = "C:\Qt\Tools\$mingwName\bin"
+
+        Write-Host "Qt bin path: $qtBinPath"
+        Write-Host "MinGW bin path: $mingwBinPath"
+
+        # Add to GITHUB_PATH
+        $qtBinPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        $mingwBinPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+        # Set environment variables for CMake
+        echo "CMAKE_PREFIX_PATH=C:\Qt\$env:QT_VERSION\mingw_64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "Qt6_DIR=C:\Qt\$env:QT_VERSION\mingw_64\lib\cmake\Qt6" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      shell: pwsh
+
+    # ==================== VERIFY INSTALLATION ====================
+    - name: Verify Qt and MinGW Installation
+      run: |
+        Write-Host "=== Verifying Installation ==="
+        
+        Write-Host "`nQt qmake location:"
+        Get-Command qmake -ErrorAction SilentlyContinue | Format-List
+        
+        Write-Host "`nMinGW g++ location:"
+        Get-Command g++ -ErrorAction SilentlyContinue | Format-List
+        
+        Write-Host "`nMinGW g++ version:"
         g++ --version
-        where windeployqt
-
-    - name: Verify Qt CMake files exist
-      run: |
-        dir C:\Qt\6.10.0\mingw_64\lib\cmake
-
-    # ---------------------------------------------------------
-    # Configure CMake
-    # ---------------------------------------------------------
-    - name: Configure CMake
+        
+        Write-Host "`nCMake version:"
+        cmake --version
+        
+        Write-Host "`nQt CMake files:"
+        if (Test-Path "C:\Qt\$env:QT_VERSION\mingw_64\lib\cmake\Qt6") {
+          Get-ChildItem "C:\Qt\$env:QT_VERSION\mingw_64\lib\cmake\Qt6" | Select-Object Name
+        } else {
+          Write-Error "Qt CMake files not found!"
+          exit 1
+        }
       shell: pwsh
+
+    # ==================== DOWNLOAD YT-DLP (OPTIONAL) ====================
+    - name: Download yt-dlp
       run: |
-        $mingw = Get-Content C:\Qt\mingw-tool-name.txt
+        Write-Host "Downloading yt-dlp.exe..."
+        try {
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
+            -OutFile "${{ github.workspace }}\yt-dlp.exe" `
+            -ErrorAction Stop
+          Write-Host "yt-dlp.exe downloaded successfully"
+        } catch {
+          Write-Warning "Failed to download yt-dlp.exe: $_"
+          Write-Warning "Continuing without yt-dlp (YouTube features will not work)"
+          # Create empty file to prevent CMake errors
+          New-Item -Path "${{ github.workspace }}\yt-dlp.exe" -ItemType File -Force | Out-Null
+        }
+      shell: pwsh
+      continue-on-error: true
+
+    # ==================== CONFIGURE CMAKE ====================
+    - name: Configure CMake
+      run: |
+        Write-Host "=== Configuring CMake ==="
+        
+        $mingwName = Get-Content C:\Qt\mingw-name.txt -ErrorAction SilentlyContinue
+        if (-not $mingwName) {
+          $mingwDir = Get-ChildItem "C:\Qt\Tools" -Directory | Where-Object { $_.Name -like "mingw*" } | Select-Object -First 1
+          $mingwName = $mingwDir.Name
+        }
+
+        $env:CC = "C:\Qt\Tools\$mingwName\bin\gcc.exe"
+        $env:CXX = "C:\Qt\Tools\$mingwName\bin\g++.exe"
+
+        Write-Host "C Compiler: $env:CC"
+        Write-Host "C++ Compiler: $env:CXX"
+
         cmake -S . -B build -G "MinGW Makefiles" `
-          -DCMAKE_C_COMPILER="C:/Qt/Tools/$mingw/bin/gcc.exe" `
-          -DCMAKE_CXX_COMPILER="C:/Qt/Tools/$mingw/bin/g++.exe" `
-          -DQt6_DIR="C:/Qt/6.10.0/mingw_64/lib/cmake/Qt6" `
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_C_COMPILER="$env:CC" `
+          -DCMAKE_CXX_COMPILER="$env:CXX" `
+          -DQt6_DIR="$env:Qt6_DIR" `
+          -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH" `
+          -DCMAKE_MAKE_PROGRAM="C:\Qt\Tools\$mingwName\bin\mingw32-make.exe"
 
-    # ---------------------------------------------------------
-    # Build
-    # ---------------------------------------------------------
-    - name: Build project
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "CMake configuration failed!"
+          exit 1
+        }
+      shell: pwsh
+
+    # ==================== BUILD ====================
+    - name: Build Project
       run: |
-        cmake --build build --config Release
+        Write-Host "=== Building Project ==="
+        cmake --build build --config Release --parallel 4
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Build failed!"
+          exit 1
+        }
+        
+        Write-Host "`nBuild completed successfully!"
+        Write-Host "`nBuild artifacts:"
+        Get-ChildItem build -Recurse -Include *.exe,*.dll | Select-Object FullName
+      shell: pwsh
 
-    # ---------------------------------------------------------
-    # Deploy Qt runtime
-    # ---------------------------------------------------------
-    - name: Deploy Qt GUI runtime
+    # ==================== DEPLOY QT DEPENDENCIES ====================
+    - name: Deploy Qt Dependencies
       run: |
-        windeployqt --qmldir . --release build\FinixPlayer.exe
+        Write-Host "=== Deploying Qt Runtime Dependencies ==="
+        
+        $exePath = "build\FinixPlayer.exe"
+        
+        if (-not (Test-Path $exePath)) {
+          Write-Error "FinixPlayer.exe not found at: $exePath"
+          Get-ChildItem build -Recurse | Select-Object FullName
+          exit 1
+        }
 
-    # ---------------------------------------------------------
-    # Artifact output
-    # ---------------------------------------------------------
-    - name: Upload portable artifact
+        Write-Host "Deploying dependencies for: $exePath"
+        
+        windeployqt --qmldir . --release $exePath
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Warning "windeployqt returned non-zero exit code, but continuing..."
+        }
+
+        Write-Host "`nDeployment completed!"
+        Write-Host "`nFinal build directory contents:"
+        Get-ChildItem build | Select-Object Name, Length
+      shell: pwsh
+
+    # ==================== COPY ADDITIONAL FILES ====================
+    - name: Copy Additional Files
+      run: |
+        Write-Host "=== Copying Additional Files ==="
+        
+        # Copy yt-dlp if it exists and is not empty
+        if (Test-Path "yt-dlp.exe") {
+          $fileInfo = Get-Item "yt-dlp.exe"
+          if ($fileInfo.Length -gt 0) {
+            Copy-Item "yt-dlp.exe" "build\" -Force
+            Write-Host "Copied yt-dlp.exe to build directory"
+          } else {
+            Write-Warning "yt-dlp.exe is empty, skipping copy"
+          }
+        }
+        
+        # Copy README if it exists
+        if (Test-Path "README.md") {
+          Copy-Item "README.md" "build\" -Force
+          Write-Host "Copied README.md"
+        }
+        
+        # Copy LICENSE if it exists
+        if (Test-Path "LICENSE") {
+          Copy-Item "LICENSE" "build\" -Force
+          Write-Host "Copied LICENSE"
+        }
+
+        Write-Host "`nAll files copied successfully!"
+      shell: pwsh
+      continue-on-error: true
+
+    # ==================== CREATE PACKAGE ====================
+    - name: Create Portable Package
+      run: |
+        Write-Host "=== Creating Portable Package ==="
+        
+        $version = "$env:QT_VERSION"
+        $date = Get-Date -Format "yyyy-MM-dd"
+        $packageName = "FinixPlayer-Windows-Qt$($version.Replace('.',''))-$date"
+        
+        # Create package directory
+        New-Item -Path "package" -ItemType Directory -Force | Out-Null
+        
+        # Copy build directory contents
+        Copy-Item -Path "build\*" -Destination "package\" -Recurse -Force
+        
+        # Create version info file
+        @"
+Finix Player - Portable Release
+================================
+Build Date: $date
+Qt Version: $version
+Platform: Windows 10/11 x64
+MinGW: GCC 13.1.0
+
+YouTube Support: $(if (Test-Path "package\yt-dlp.exe" -and (Get-Item "package\yt-dlp.exe").Length -gt 0) { "Included" } else { "Not included - download separately" })
+
+Requirements:
+- Windows 10 or later (64-bit)
+- No additional installation required
+
+Usage:
+1. Extract all files to a folder
+2. Run FinixPlayer.exe
+3. Enjoy your music!
+
+For more information, visit:
+https://github.com/kazimdsayedhossain/Finix_Plus
+"@ | Out-File -FilePath "package\README.txt" -Encoding utf8
+
+        Write-Host "Package created: $packageName"
+        
+        # Show package contents
+        Write-Host "`nPackage contents:"
+        Get-ChildItem package -Recurse | Measure-Object -Property Length -Sum | ForEach-Object {
+          Write-Host "Total files: $($_.Count)"
+          Write-Host "Total size: $([math]::Round($_.Sum / 1MB, 2)) MB"
+        }
+      shell: pwsh
+
+    # ==================== UPLOAD ARTIFACTS ====================
+    - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: FinixPlayer-Windows-Qt610
-        path: build/**
+        name: FinixPlayer-Windows-Qt${{ env.QT_VERSION }}-${{ github.sha }}
+        path: package/
+        retention-days: 30
+        compression-level: 9
 
+    # ==================== UPLOAD LOGS ON FAILURE ====================
+    - name: Upload Build Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-${{ github.sha }}
+        path: |
+          build/CMakeFiles/CMakeOutput.log
+          build/CMakeFiles/CMakeError.log
+          build/**/*.log
+        retention-days: 7
+        if-no-files-found: ignore
+
+    # ==================== BUILD SUMMARY ====================
+    - name: Build Summary
+      if: always()
+      run: |
+        Write-Host "`n=========================================="
+        Write-Host "BUILD SUMMARY"
+        Write-Host "=========================================="
+        Write-Host "Status: $($env:GITHUB_JOB_STATUS)"
+        Write-Host "Qt Version: $env:QT_VERSION"
+        Write-Host "Architecture: $env:QT_ARCH"
+        Write-Host "Build Type: Release"
+        Write-Host "Repository: $env:GITHUB_REPOSITORY"
+        Write-Host "Commit: $env:GITHUB_SHA"
+        Write-Host "Branch: $env:GITHUB_REF_NAME"
+        Write-Host "=========================================="
+        
+        if (Test-Path "package\FinixPlayer.exe") {
+          $exeInfo = Get-Item "package\FinixPlayer.exe"
+          Write-Host "Executable Size: $([math]::Round($exeInfo.Length / 1MB, 2)) MB"
+        }
+        
+        if (Test-Path "package") {
+          $packageSize = (Get-ChildItem package -Recurse | Measure-Object -Property Length -Sum).Sum
+          Write-Host "Total Package Size: $([math]::Round($packageSize / 1MB, 2)) MB"
+        }
+        Write-Host "=========================================="
+      shell: pwsh
