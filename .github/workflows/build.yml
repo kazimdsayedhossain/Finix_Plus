@@ -342,11 +342,12 @@ https://github.com/kazimdsayedhossain/Finix_Plus
     # ==================== BUILD SUMMARY ====================
     - name: Build Summary
       if: always()
+      shell: pwsh
       run: |
-        Write-Host "`n=========================================="
+        Write-Host ""
+        Write-Host "=========================================="
         Write-Host "BUILD SUMMARY"
         Write-Host "=========================================="
-        Write-Host "Status: $($env:GITHUB_JOB_STATUS)"
         Write-Host "Qt Version: $env:QT_VERSION"
         Write-Host "Architecture: $env:QT_ARCH"
         Write-Host "Build Type: Release"
@@ -357,12 +358,13 @@ https://github.com/kazimdsayedhossain/Finix_Plus
         
         if (Test-Path "package\FinixPlayer.exe") {
           $exeInfo = Get-Item "package\FinixPlayer.exe"
-          Write-Host "Executable Size: $([math]::Round($exeInfo.Length / 1MB, 2)) MB"
+          $exeSize = [math]::Round($exeInfo.Length / 1MB, 2)
+          Write-Host "Executable Size: $exeSize MB"
         }
         
         if (Test-Path "package") {
           $packageSize = (Get-ChildItem package -Recurse | Measure-Object -Property Length -Sum).Sum
-          Write-Host "Total Package Size: $([math]::Round($packageSize / 1MB, 2)) MB"
+          $totalSize = [math]::Round($packageSize / 1MB, 2)
+          Write-Host "Total Package Size: $totalSize MB"
         }
         Write-Host "=========================================="
-      shell: pwsh
