@@ -46,20 +46,54 @@ jobs:
           pip install aqtinstall
 
       # ========================================
-      # STEP 3: Install Qt 6.10 with MinGW
+      # STEP 3: List Available Modules (for debugging)
       # ========================================
-      - name: Install Qt 6.10
+      - name: List Available Qt Modules
         run: |
-          aqt install-qt windows desktop 6.10.0 win64_mingw -m qtdeclarative qtmultimedia qt5compat qtshadertools -O C:\Qt
+          Write-Host "Listing available Qt modules for 6.10.0..."
+          aqt list-qt windows desktop --modules 6.10.0 win64_mingw
+        shell: pwsh
+        continue-on-error: true
+
+      # ========================================
+      # STEP 4: Install Qt 6.10 Base
+      # ========================================
+      - name: Install Qt 6.10.0 Base
+        run: |
+          aqt install-qt windows desktop 6.10.0 win64_mingw -O C:\Qt
         shell: cmd
 
+      # ========================================
+      # STEP 5: Install Qt Modules
+      # ========================================
+      - name: Install Qt Multimedia Module
+        run: |
+          aqt install-qt windows desktop 6.10.0 win64_mingw -m qtmultimedia -O C:\Qt
+        shell: cmd
+        continue-on-error: true
+
+      - name: Install Qt 5 Compat Module
+        run: |
+          aqt install-qt windows desktop 6.10.0 win64_mingw -m qt5compat -O C:\Qt
+        shell: cmd
+        continue-on-error: true
+
+      - name: Install Qt Shader Tools Module
+        run: |
+          aqt install-qt windows desktop 6.10.0 win64_mingw -m qtshadertools -O C:\Qt
+        shell: cmd
+        continue-on-error: true
+
+      # ========================================
+      # STEP 6: Install MinGW Toolchain
+      # ========================================
       - name: Install MinGW 13.1.0
         run: |
           aqt install-tool windows desktop tools_mingw1310 -O C:\Qt
         shell: cmd
 
       # ========================================
-      # STEP 4: Setup Environment Variables
+      # STEP 7: Setup Environment Variables
       # ========================================
       - name: Set Qt Environment
         run: |
@@ -69,7 +103,7 @@ jobs:
         shell: pwsh
 
       # ========================================
-      # STEP 5: Verify Installation
+      # STEP 8: Verify Installation
       # ========================================
       - name: Verify Qt and MinGW
         run: |
@@ -80,10 +114,15 @@ jobs:
           g++ --version
           Write-Host "`nChecking CMake..."
           cmake --version
+          Write-Host "`nChecking Qt CMake files..."
+          if (Test-Path "C:\Qt\6.10.0\mingw_64\lib\cmake\Qt6") {
+            Write-Host "Qt6 CMake files found"
+            Get-ChildItem "C:\Qt\6.10.0\mingw_64\lib\cmake" -Directory | Select-Object Name
+          }
         shell: pwsh
 
       # ========================================
-      # STEP 6: Download yt-dlp
+      # STEP 9: Download yt-dlp
       # ========================================
       - name: Download yt-dlp
         run: |
@@ -118,7 +157,7 @@ jobs:
         shell: cmd
 
       # ========================================
-      # STEP 10: Copy Additional Files
+      # STEP 13: Copy Additional Files
       # ========================================
       - name: Prepare Portable Package
         run: |
@@ -163,7 +202,7 @@ jobs:
         shell: pwsh
 
       # ========================================
-      # STEP 11: Upload Artifacts
+      # STEP 14: Upload Artifacts
       # ========================================
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -173,7 +212,7 @@ jobs:
           retention-days: 30
 
       # ========================================
-      # STEP 12: Build Summary
+      # STEP 15: Build Summary
       # ========================================
       - name: Display Build Summary
         if: success()
@@ -200,7 +239,7 @@ jobs:
         shell: pwsh
 
       # ========================================
-      # STEP 13: Upload Logs on Failure
+      # STEP 16: Upload Logs on Failure
       # ========================================
       - name: Upload Build Logs
         if: failure()
