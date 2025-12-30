@@ -121,7 +121,7 @@ jobs:
       - name: Verify Qt Installation
         run: |
           echo "Qt installation path: $HOME/Qt/6.10.0/gcc_64"
-          ls -la $HOME/Qt/6.10.0/gcc_64/bin/
+          ls -la $HOME/Qt/6.10.0/gcc_64/bin/ || echo "Qt bin directory not found"
           qmake --version || echo "qmake not found"
           echo "GCC version:"
           gcc --version
@@ -130,6 +130,8 @@ jobs:
           cmake --version
           echo "Qt CMake files:"
           ls -la $HOME/Qt/6.10.0/gcc_64/lib/cmake/ || echo "CMake files not found"
+          echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
+          echo "Qt6_DIR=$Qt6_DIR"
 
       # ========================================
       # STEP 6: Download yt-dlp
@@ -147,10 +149,12 @@ jobs:
       # ========================================
       - name: Configure CMake
         run: |
+          mkdir -p ${{ env.BUILD_DIR }}
           cmake -S . -B ${{ env.BUILD_DIR }} \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
             -DCMAKE_PREFIX_PATH=$HOME/Qt/6.10.0/gcc_64 \
-            -DQt6_DIR=$HOME/Qt/6.10.0/gcc_64/lib/cmake/Qt6
+            -DQt6_DIR=$HOME/Qt/6.10.0/gcc_64/lib/cmake/Qt6 \
+            -DCMAKE_VERBOSE_MAKEFILE=ON
 
       # ========================================
       # STEP 8: Build Project
@@ -197,14 +201,18 @@ jobs:
           Terminal=false
           EOF
           
-          # Copy icon if exists
+          # Copy icon if exists, otherwise create placeholder
           if [ -f "assests/app_icon_full.png" ]; then
             cp assests/app_icon_full.png AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
           else
-            # Create a placeholder icon
-            convert -size 256x256 xc:blue -pointsize 72 -fill white -gravity center \
-              -annotate +0+0 "FP" AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png || \
+            # Create a simple placeholder icon using ImageMagick if available
+            if command -v convert &> /dev/null; then
+              convert -size 256x256 xc:blue -pointsize 72 -fill white -gravity center \
+                -annotate +0+0 "FP" AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
+            else
+              # Create an empty placeholder
               touch AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
+            fi
           fi
 
       # ========================================
@@ -215,6 +223,7 @@ jobs:
           export LD_LIBRARY_PATH=$HOME/Qt/6.10.0/gcc_64/lib:$LD_LIBRARY_PATH
           export PATH=$HOME/Qt/6.10.0/gcc_64/bin:$PATH
           
+          # Run linuxdeployqt
           ./linuxdeployqt-continuous-x86_64.AppImage AppDir/usr/share/applications/FinixPlayer.desktop \
             -appimage \
             -bundle-non-qt-libs \
