@@ -68,7 +68,8 @@ jobs:
             libfuse2 \
             file \
             wget \
-            curl
+            curl \
+            imagemagick
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -80,41 +81,59 @@ jobs:
           python -m pip install --upgrade pip
           pip install aqtinstall
 
-      - name: Install Qt 6.10.0
+      - name: Check Available Qt Architectures
         run: |
-          aqt install-qt linux desktop 6.10.0 gcc_64 -O $HOME/Qt
-          echo "$HOME/Qt/6.10.0/gcc_64/bin" >> $GITHUB_PATH
-          echo "CMAKE_PREFIX_PATH=$HOME/Qt/6.10.0/gcc_64" >> $GITHUB_ENV
-          echo "Qt6_DIR=$HOME/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=$HOME/Qt/6.10.0/gcc_64/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "Checking available Qt architectures for version ${{ env.QT_VERSION }}..."
+          aqt list-qt linux desktop --arch ${{ env.QT_VERSION }}
+        continue-on-error: true
+
+      - name: Install Qt Base
+        run: |
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -O $HOME/Qt
+          echo "$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/bin" >> $GITHUB_PATH
+          echo "CMAKE_PREFIX_PATH=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64" >> $GITHUB_ENV
+          echo "Qt6_DIR=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Install Qt Multimedia Module
         run: |
-          aqt install-qt linux desktop 6.10.0 gcc_64 -m qtmultimedia -O $HOME/Qt
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -m qtmultimedia -O $HOME/Qt
         continue-on-error: true
 
       - name: Install Qt 5 Compat Module
         run: |
-          aqt install-qt linux desktop 6.10.0 gcc_64 -m qt5compat -O $HOME/Qt
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -m qt5compat -O $HOME/Qt
         continue-on-error: true
 
       - name: Install Qt Shader Tools Module
         run: |
-          aqt install-qt linux desktop 6.10.0 gcc_64 -m qtshadertools -O $HOME/Qt
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -m qtshadertools -O $HOME/Qt
         continue-on-error: true
 
       - name: Verify Qt Installation
         run: |
-          echo "Qt installation path: $HOME/Qt/6.10.0/gcc_64"
-          ls -la $HOME/Qt/6.10.0/gcc_64/bin/ || echo "Qt bin directory not found"
-          qmake --version || echo "qmake not found"
+          echo "==== Qt Installation Verification ===="
+          echo "Qt installation path: $HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64"
+          echo ""
+          echo "Qt bin directory contents:"
+          ls -la $HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/bin/ 2>/dev/null || echo "Qt bin directory not found"
+          echo ""
+          echo "qmake version:"
+          qmake --version 2>/dev/null || echo "qmake not found in PATH"
+          echo ""
           echo "GCC version:"
           gcc --version
-          g++ --version
+          echo ""
           echo "CMake version:"
           cmake --version
+          echo ""
           echo "Qt CMake files:"
-          ls -la $HOME/Qt/6.10.0/gcc_64/lib/cmake/ || echo "CMake files not found"
+          ls -la $HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/lib/cmake/ 2>/dev/null || echo "CMake files not found"
+          echo ""
+          echo "Environment variables:"
+          echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
+          echo "Qt6_DIR=$Qt6_DIR"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
       - name: Download yt-dlp
         run: |
@@ -129,8 +148,8 @@ jobs:
           mkdir -p ${{ env.BUILD_DIR }}
           cmake -S . -B ${{ env.BUILD_DIR }} \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
-            -DCMAKE_PREFIX_PATH=$HOME/Qt/6.10.0/gcc_64 \
-            -DQt6_DIR=$HOME/Qt/6.10.0/gcc_64/lib/cmake/Qt6 \
+            -DCMAKE_PREFIX_PATH=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64 \
+            -DQt6_DIR=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/lib/cmake/Qt6 \
             -DCMAKE_VERBOSE_MAKEFILE=ON
 
       - name: Build Project
@@ -167,18 +186,16 @@ jobs:
           if [ -f "assests/app_icon_full.png" ]; then
             cp assests/app_icon_full.png AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
           else
-            if command -v convert &> /dev/null; then
-              convert -size 256x256 xc:blue -pointsize 72 -fill white -gravity center \
-                -annotate +0+0 "FP" AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
-            else
+            convert -size 256x256 xc:"#3D5AFE" -pointsize 72 -fill white -gravity center \
+              -font DejaVu-Sans-Bold -annotate +0+0 "FP" \
+              AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png 2>/dev/null || \
               touch AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
-            fi
           fi
 
       - name: Deploy Qt Dependencies
         run: |
-          export LD_LIBRARY_PATH=$HOME/Qt/6.10.0/gcc_64/lib:$LD_LIBRARY_PATH
-          export PATH=$HOME/Qt/6.10.0/gcc_64/bin:$PATH
+          export LD_LIBRARY_PATH=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/lib:$LD_LIBRARY_PATH
+          export PATH=$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/bin:$PATH
           
           ./linuxdeployqt-continuous-x86_64.AppImage AppDir/usr/share/applications/FinixPlayer.desktop \
             -appimage \
@@ -196,9 +213,9 @@ jobs:
           
           cp ${{ env.BUILD_DIR }}/FinixPlayer FinixPlayer-Portable/
           
-          cp -r $HOME/Qt/6.10.0/gcc_64/lib/*.so* FinixPlayer-Portable/ 2>/dev/null || true
-          cp -r $HOME/Qt/6.10.0/gcc_64/plugins FinixPlayer-Portable/ 2>/dev/null || true
-          cp -r $HOME/Qt/6.10.0/gcc_64/qml FinixPlayer-Portable/ 2>/dev/null || true
+          cp -r $HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/lib/*.so* FinixPlayer-Portable/ 2>/dev/null || true
+          cp -r $HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/plugins FinixPlayer-Portable/ 2>/dev/null || true
+          cp -r $HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64/qml FinixPlayer-Portable/ 2>/dev/null || true
           
           if [ -f "yt-dlp" ]; then
             cp yt-dlp FinixPlayer-Portable/
