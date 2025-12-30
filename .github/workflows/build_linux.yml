@@ -17,6 +17,7 @@ env:
   CMAKE_BUILD_TYPE: Release
   BUILD_DIR: build
   ARTIFACT_NAME: FinixPlayer-Linux
+  QT_ROOT: /home/runner/Qt/6.10.0/gcc_64
 
 jobs:
   build-linux:
@@ -28,6 +29,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Clean Build Directory
+        run: |
+          if [ -d "${{ env.BUILD_DIR }}" ]; then
+            echo "Removing existing build directory..."
+            rm -rf ${{ env.BUILD_DIR }}
+          fi
+          echo "Creating fresh build directory..."
+          mkdir -p ${{ env.BUILD_DIR }}
 
       - name: Install System Dependencies
         run: |
@@ -81,72 +91,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install aqtinstall
 
-      - name: Check Available Qt Architectures
-        run: |
-          echo "Checking available Qt architectures for version ${{ env.QT_VERSION }}..."
-          aqt list-qt linux desktop --arch ${{ env.QT_VERSION }}
-        continue-on-error: true
-
       - name: Install Qt Base
         run: |
-          echo "Installing Qt ${{ env.QT_VERSION }} to $HOME/Qt..."
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -O $HOME/Qt
-          echo "Qt installation completed"
-
-      - name: Debug - Find Qt Installation
-        run: |
-          echo "==== Searching for Qt Installation ===="
-          echo "Looking in $HOME/Qt..."
-          ls -la $HOME/Qt/ || echo "$HOME/Qt does not exist"
-          echo ""
-          echo "Looking for version directories..."
-          find $HOME/Qt -maxdepth 2 -type d 2>/dev/null || echo "No directories found"
-          echo ""
-          echo "Looking for gcc_64 or linux_gcc_64 directories..."
-          find $HOME/Qt -name "*gcc*64" -type d 2>/dev/null || echo "No gcc directories found"
-          echo ""
-          echo "Looking for Qt6Config.cmake..."
-          find $HOME/Qt -name "Qt6Config.cmake" 2>/dev/null || echo "Qt6Config.cmake not found"
-
-      - name: Determine Qt Path
-        id: qt_path
-        run: |
-          echo "Determining actual Qt installation path..."
-          
-          # Try to find the actual Qt installation directory
-          if [ -d "$HOME/Qt/${{ env.QT_VERSION }}/gcc_64" ]; then
-            QT_ROOT="$HOME/Qt/${{ env.QT_VERSION }}/gcc_64"
-            echo "Found Qt at: $QT_ROOT (using gcc_64)"
-          elif [ -d "$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64" ]; then
-            QT_ROOT="$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64"
-            echo "Found Qt at: $QT_ROOT (using linux_gcc_64)"
-          else
-            # Try to find it anywhere
-            QT_ROOT=$(find $HOME/Qt -name "Qt6Config.cmake" -type f 2>/dev/null | head -1 | xargs dirname | xargs dirname | xargs dirname)
-            if [ -n "$QT_ROOT" ] && [ -d "$QT_ROOT" ]; then
-              echo "Found Qt at: $QT_ROOT (via Qt6Config.cmake search)"
-            else
-              echo "ERROR: Could not find Qt installation!"
-              exit 1
-            fi
-          fi
-          
-          echo "QT_ROOT=$QT_ROOT" >> $GITHUB_OUTPUT
-          echo "QT_ROOT=$QT_ROOT" >> $GITHUB_ENV
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -O $HOME/Qt
 
       - name: Install Qt Multimedia Module
         run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -m qtmultimedia -O $HOME/Qt
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -m qtmultimedia -O $HOME/Qt
         continue-on-error: true
 
       - name: Install Qt 5 Compat Module
         run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -m qt5compat -O $HOME/Qt
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -m qt5compat -O $HOME/Qt
         continue-on-error: true
 
       - name: Install Qt Shader Tools Module
         run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -m qtshadertools -O $HOME/Qt
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -m qtshadertools -O $HOME/Qt
         continue-on-error: true
 
       - name: Set Qt Environment Variables
@@ -163,44 +124,13 @@ jobs:
           echo "==== Qt Installation Verification ===="
           echo "Qt Root: ${{ env.QT_ROOT }}"
           echo ""
-          echo "Checking if Qt directory exists:"
-          if [ -d "${{ env.QT_ROOT }}" ]; then
-            echo "✓ Qt directory found"
-            echo ""
-            echo "Qt directory structure:"
-            ls -la ${{ env.QT_ROOT }}
-          else
-            echo "✗ Qt directory NOT found at ${{ env.QT_ROOT }}"
-            exit 1
-          fi
-          echo ""
-          echo "Checking Qt6Config.cmake:"
-          if [ -f "${{ env.QT_ROOT }}/lib/cmake/Qt6/Qt6Config.cmake" ]; then
-            echo "✓ Qt6Config.cmake found"
-          else
-            echo "✗ Qt6Config.cmake NOT found"
-            exit 1
-          fi
-          echo ""
-          echo "Qt bin directory contents:"
-          ls -la ${{ env.QT_ROOT }}/bin/ | head -20
-          echo ""
-          echo "qmake version:"
-          ${{ env.QT_ROOT }}/bin/qmake --version
+          qmake --version
           echo ""
           echo "GCC version:"
           gcc --version
           echo ""
           echo "CMake version:"
           cmake --version
-          echo ""
-          echo "Environment variables:"
-          echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
-          echo "Qt6_DIR=$Qt6_DIR"
-          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-          echo ""
-          echo "Qt CMake modules:"
-          ls -la ${{ env.QT_ROOT }}/lib/cmake/ | head -20
 
       - name: Download yt-dlp
         run: |
@@ -212,7 +142,6 @@ jobs:
 
       - name: Configure CMake
         run: |
-          mkdir -p ${{ env.BUILD_DIR }}
           cmake -S . -B ${{ env.BUILD_DIR }} \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
             -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT }}" \
@@ -222,6 +151,18 @@ jobs:
       - name: Build Project
         run: |
           cmake --build ${{ env.BUILD_DIR }} --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(nproc)
+
+      - name: Verify Build Output
+        run: |
+          echo "Checking build output..."
+          ls -lh ${{ env.BUILD_DIR }}/
+          if [ -f "${{ env.BUILD_DIR }}/FinixPlayer" ]; then
+            echo "✓ FinixPlayer executable found"
+            file ${{ env.BUILD_DIR }}/FinixPlayer
+          else
+            echo "✗ FinixPlayer executable not found!"
+            exit 1
+          fi
 
       - name: Download linuxdeployqt
         run: |
