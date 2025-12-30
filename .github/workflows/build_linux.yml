@@ -24,17 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # ========================================
-      # STEP 1: Checkout Repository
-      # ========================================
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # ========================================
-      # STEP 2: Install System Dependencies
-      # ========================================
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -76,9 +70,6 @@ jobs:
             wget \
             curl
 
-      # ========================================
-      # STEP 3: Setup Python for aqtinstall
-      # ========================================
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -89,9 +80,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install aqtinstall
 
-      # ========================================
-      # STEP 4: Install Qt 6.10 for Linux
-      # ========================================
       - name: Install Qt 6.10.0
         run: |
           aqt install-qt linux desktop 6.10.0 gcc_64 -O $HOME/Qt
@@ -115,9 +103,6 @@ jobs:
           aqt install-qt linux desktop 6.10.0 gcc_64 -m qtshadertools -O $HOME/Qt
         continue-on-error: true
 
-      # ========================================
-      # STEP 5: Verify Installation
-      # ========================================
       - name: Verify Qt Installation
         run: |
           echo "Qt installation path: $HOME/Qt/6.10.0/gcc_64"
@@ -130,12 +115,7 @@ jobs:
           cmake --version
           echo "Qt CMake files:"
           ls -la $HOME/Qt/6.10.0/gcc_64/lib/cmake/ || echo "CMake files not found"
-          echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
-          echo "Qt6_DIR=$Qt6_DIR"
 
-      # ========================================
-      # STEP 6: Download yt-dlp
-      # ========================================
       - name: Download yt-dlp
         run: |
           echo "Downloading yt-dlp..."
@@ -144,9 +124,6 @@ jobs:
           echo "yt-dlp downloaded successfully"
         continue-on-error: true
 
-      # ========================================
-      # STEP 7: Configure CMake
-      # ========================================
       - name: Configure CMake
         run: |
           mkdir -p ${{ env.BUILD_DIR }}
@@ -156,24 +133,15 @@ jobs:
             -DQt6_DIR=$HOME/Qt/6.10.0/gcc_64/lib/cmake/Qt6 \
             -DCMAKE_VERBOSE_MAKEFILE=ON
 
-      # ========================================
-      # STEP 8: Build Project
-      # ========================================
       - name: Build Project
         run: |
           cmake --build ${{ env.BUILD_DIR }} --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(nproc)
 
-      # ========================================
-      # STEP 9: Install linuxdeployqt
-      # ========================================
       - name: Download linuxdeployqt
         run: |
           wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
           chmod +x linuxdeployqt-continuous-x86_64.AppImage
 
-      # ========================================
-      # STEP 10: Create AppDir Structure
-      # ========================================
       - name: Prepare AppDir
         run: |
           mkdir -p AppDir/usr/bin
@@ -181,81 +149,61 @@ jobs:
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
           
-          # Copy executable
           cp ${{ env.BUILD_DIR }}/FinixPlayer AppDir/usr/bin/
           
-          # Copy yt-dlp if available
           if [ -f "yt-dlp" ]; then
             cp yt-dlp AppDir/usr/bin/
           fi
           
-          # Create desktop file
-          cat > AppDir/usr/share/applications/FinixPlayer.desktop << 'DESKTOPFILE'
-[Desktop Entry]
-Type=Application
-Name=Finix Player
-Comment=Modern Audio Player with Effects
-Exec=FinixPlayer
-Icon=FinixPlayer
-Categories=AudioVideo;Audio;Player;Qt;
-Terminal=false
-DESKTOPFILE
+          echo "[Desktop Entry]" > AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Type=Application" >> AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Name=Finix Player" >> AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Comment=Modern Audio Player with Effects" >> AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Exec=FinixPlayer" >> AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Icon=FinixPlayer" >> AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Categories=AudioVideo;Audio;Player;Qt;" >> AppDir/usr/share/applications/FinixPlayer.desktop
+          echo "Terminal=false" >> AppDir/usr/share/applications/FinixPlayer.desktop
           
-          # Copy icon if exists, otherwise create placeholder
           if [ -f "assests/app_icon_full.png" ]; then
             cp assests/app_icon_full.png AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
           else
-            # Create a simple placeholder icon using ImageMagick if available
             if command -v convert &> /dev/null; then
               convert -size 256x256 xc:blue -pointsize 72 -fill white -gravity center \
                 -annotate +0+0 "FP" AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
             else
-              # Create an empty placeholder
               touch AppDir/usr/share/icons/hicolor/256x256/apps/FinixPlayer.png
             fi
           fi
 
-      # ========================================
-      # STEP 11: Deploy Qt Dependencies
-      # ========================================
       - name: Deploy Qt Dependencies
         run: |
           export LD_LIBRARY_PATH=$HOME/Qt/6.10.0/gcc_64/lib:$LD_LIBRARY_PATH
           export PATH=$HOME/Qt/6.10.0/gcc_64/bin:$PATH
           
-          # Run linuxdeployqt
           ./linuxdeployqt-continuous-x86_64.AppImage AppDir/usr/share/applications/FinixPlayer.desktop \
             -appimage \
             -bundle-non-qt-libs \
             -qmldir=. \
             -verbose=2 || echo "linuxdeployqt completed with warnings"
           
-          # Rename AppImage to simpler name
           if [ -f Finix_Player*.AppImage ]; then
             mv Finix_Player*.AppImage FinixPlayer-x86_64.AppImage
           fi
 
-      # ========================================
-      # STEP 12: Create Portable Archive
-      # ========================================
       - name: Create Portable Package
         run: |
           mkdir -p FinixPlayer-Portable
           
-          # Copy executable and libraries
           cp ${{ env.BUILD_DIR }}/FinixPlayer FinixPlayer-Portable/
           
-          # Copy Qt libraries
           cp -r $HOME/Qt/6.10.0/gcc_64/lib/*.so* FinixPlayer-Portable/ 2>/dev/null || true
           cp -r $HOME/Qt/6.10.0/gcc_64/plugins FinixPlayer-Portable/ 2>/dev/null || true
           cp -r $HOME/Qt/6.10.0/gcc_64/qml FinixPlayer-Portable/ 2>/dev/null || true
           
-          # Copy yt-dlp
           if [ -f "yt-dlp" ]; then
             cp yt-dlp FinixPlayer-Portable/
           fi
           
-          # Copy documentation
           if [ -f "README.md" ]; then
             cp README.md FinixPlayer-Portable/
           fi
@@ -264,45 +212,43 @@ DESKTOPFILE
             cp LICENSE FinixPlayer-Portable/
           fi
           
-          # Create run script
           cat > FinixPlayer-Portable/run.sh << 'RUNSCRIPT'
-#!/bin/bash
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export LD_LIBRARY_PATH="$SCRIPT_DIR:$LD_LIBRARY_PATH"
-export QT_PLUGIN_PATH="$SCRIPT_DIR/plugins"
-export QML2_IMPORT_PATH="$SCRIPT_DIR/qml"
-cd "$SCRIPT_DIR"
-./FinixPlayer "$@"
-RUNSCRIPT
+          #!/bin/bash
+          SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+          export LD_LIBRARY_PATH="$SCRIPT_DIR:$LD_LIBRARY_PATH"
+          export QT_PLUGIN_PATH="$SCRIPT_DIR/plugins"
+          export QML2_IMPORT_PATH="$SCRIPT_DIR/qml"
+          cd "$SCRIPT_DIR"
+          ./FinixPlayer "$@"
+          RUNSCRIPT
+          
           chmod +x FinixPlayer-Portable/run.sh
           
-          # Create build info
           BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
           cat > FinixPlayer-Portable/BUILD_INFO.txt << BUILDINFO
-Finix Player - Linux Build
-==========================
-Build Date: ${BUILD_DATE}
-Qt Version: ${{ env.QT_VERSION }}
-Build Type: ${{ env.CMAKE_BUILD_TYPE }}
-Commit: ${{ github.sha }}
-Branch: ${{ github.ref_name }}
-
-System Requirements:
-- Ubuntu 20.04 or later (or equivalent)
-- GStreamer multimedia framework
-- X11 or Wayland display server
-
-How to Run:
-1. Extract all files to a folder
-2. Run: ./run.sh
-3. Or use the AppImage (if available)
-
-For AppImage:
-- Make it executable: chmod +x FinixPlayer-x86_64.AppImage
-- Run: ./FinixPlayer-x86_64.AppImage
-BUILDINFO
+          Finix Player - Linux Build
+          ==========================
+          Build Date: ${BUILD_DATE}
+          Qt Version: ${{ env.QT_VERSION }}
+          Build Type: ${{ env.CMAKE_BUILD_TYPE }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
           
-          # Create tarball
+          System Requirements:
+          - Ubuntu 20.04 or later (or equivalent)
+          - GStreamer multimedia framework
+          - X11 or Wayland display server
+          
+          How to Run:
+          1. Extract all files to a folder
+          2. Run: ./run.sh
+          3. Or use the AppImage (if available)
+          
+          For AppImage:
+          - Make it executable: chmod +x FinixPlayer-x86_64.AppImage
+          - Run: ./FinixPlayer-x86_64.AppImage
+          BUILDINFO
+          
           tar -czf FinixPlayer-Linux-Portable.tar.gz FinixPlayer-Portable/
           
           echo "Package created successfully"
@@ -311,33 +257,22 @@ BUILDINFO
             ls -lh FinixPlayer-x86_64.AppImage
           fi
 
-      # ========================================
-      # STEP 13: Upload AppImage
-      # ========================================
       - name: Upload AppImage
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}-AppImage-${{ github.run_number }}
-          path: |
-            FinixPlayer-x86_64.AppImage
+          path: FinixPlayer-x86_64.AppImage
           retention-days: 30
           if-no-files-found: warn
 
-      # ========================================
-      # STEP 14: Upload Portable Package
-      # ========================================
       - name: Upload Portable Package
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}-Portable-${{ github.run_number }}
-          path: |
-            FinixPlayer-Linux-Portable.tar.gz
+          path: FinixPlayer-Linux-Portable.tar.gz
           retention-days: 30
 
-      # ========================================
-      # STEP 15: Build Summary
-      # ========================================
       - name: Display Build Summary
         if: success()
         run: |
@@ -368,9 +303,6 @@ BUILDINFO
           fi
           echo "=========================================="
 
-      # ========================================
-      # STEP 16: Upload Logs on Failure
-      # ========================================
       - name: Upload Build Logs
         if: failure()
         uses: actions/upload-artifact@v4
