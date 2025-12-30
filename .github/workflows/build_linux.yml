@@ -17,7 +17,6 @@ env:
   CMAKE_BUILD_TYPE: Release
   BUILD_DIR: build
   ARTIFACT_NAME: FinixPlayer-Linux
-  QT_ROOT: /home/runner/Qt/6.10.0/linux_gcc_64
 
 jobs:
   build-linux:
@@ -90,7 +89,50 @@ jobs:
 
       - name: Install Qt Base
         run: |
+          echo "Installing Qt ${{ env.QT_VERSION }} to $HOME/Qt..."
           aqt install-qt linux desktop ${{ env.QT_VERSION }} linux_gcc_64 -O $HOME/Qt
+          echo "Qt installation completed"
+
+      - name: Debug - Find Qt Installation
+        run: |
+          echo "==== Searching for Qt Installation ===="
+          echo "Looking in $HOME/Qt..."
+          ls -la $HOME/Qt/ || echo "$HOME/Qt does not exist"
+          echo ""
+          echo "Looking for version directories..."
+          find $HOME/Qt -maxdepth 2 -type d 2>/dev/null || echo "No directories found"
+          echo ""
+          echo "Looking for gcc_64 or linux_gcc_64 directories..."
+          find $HOME/Qt -name "*gcc*64" -type d 2>/dev/null || echo "No gcc directories found"
+          echo ""
+          echo "Looking for Qt6Config.cmake..."
+          find $HOME/Qt -name "Qt6Config.cmake" 2>/dev/null || echo "Qt6Config.cmake not found"
+
+      - name: Determine Qt Path
+        id: qt_path
+        run: |
+          echo "Determining actual Qt installation path..."
+          
+          # Try to find the actual Qt installation directory
+          if [ -d "$HOME/Qt/${{ env.QT_VERSION }}/gcc_64" ]; then
+            QT_ROOT="$HOME/Qt/${{ env.QT_VERSION }}/gcc_64"
+            echo "Found Qt at: $QT_ROOT (using gcc_64)"
+          elif [ -d "$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64" ]; then
+            QT_ROOT="$HOME/Qt/${{ env.QT_VERSION }}/linux_gcc_64"
+            echo "Found Qt at: $QT_ROOT (using linux_gcc_64)"
+          else
+            # Try to find it anywhere
+            QT_ROOT=$(find $HOME/Qt -name "Qt6Config.cmake" -type f 2>/dev/null | head -1 | xargs dirname | xargs dirname | xargs dirname)
+            if [ -n "$QT_ROOT" ] && [ -d "$QT_ROOT" ]; then
+              echo "Found Qt at: $QT_ROOT (via Qt6Config.cmake search)"
+            else
+              echo "ERROR: Could not find Qt installation!"
+              exit 1
+            fi
+          fi
+          
+          echo "QT_ROOT=$QT_ROOT" >> $GITHUB_OUTPUT
+          echo "QT_ROOT=$QT_ROOT" >> $GITHUB_ENV
 
       - name: Install Qt Multimedia Module
         run: |
@@ -129,8 +171,6 @@ jobs:
             ls -la ${{ env.QT_ROOT }}
           else
             echo "✗ Qt directory NOT found at ${{ env.QT_ROOT }}"
-            echo "Looking for Qt installation..."
-            find $HOME/Qt -type d -name "linux_gcc_64" 2>/dev/null || echo "No linux_gcc_64 directory found"
             exit 1
           fi
           echo ""
@@ -139,8 +179,6 @@ jobs:
             echo "✓ Qt6Config.cmake found"
           else
             echo "✗ Qt6Config.cmake NOT found"
-            echo "Looking for Qt6Config.cmake..."
-            find $HOME/Qt -name "Qt6Config.cmake" 2>/dev/null || echo "Qt6Config.cmake not found anywhere"
             exit 1
           fi
           echo ""
