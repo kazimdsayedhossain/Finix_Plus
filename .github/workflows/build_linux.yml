@@ -17,7 +17,6 @@ env:
   CMAKE_BUILD_TYPE: Release
   BUILD_DIR: build
   ARTIFACT_NAME: FinixPlayer-Linux
-  QT_ROOT: /home/runner/Qt/6.10.0/gcc_64
 
 jobs:
   build-linux:
@@ -79,52 +78,51 @@ jobs:
             file \
             wget \
             curl \
-            imagemagick
+            imagemagick \
+            p7zip-full
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Cache Qt 6.10.0
+        id: cache-qt
+        uses: actions/cache@v4
         with:
-          python-version: '3.11'
+          path: ${{ runner.temp }}/Qt
+          key: ${{ runner.os }}-Qt-6.10.0-gcc_64
 
-      - name: Install aqtinstall
-        run: |
-          python -m pip install --upgrade pip
-          pip install aqtinstall
-
-      - name: Install Qt Base
-        run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -O $HOME/Qt
-
-      - name: Install Qt Multimedia Module
-        run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -m qtmultimedia -O $HOME/Qt
-        continue-on-error: true
-
-      - name: Install Qt 5 Compat Module
-        run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -m qt5compat -O $HOME/Qt
-        continue-on-error: true
-
-      - name: Install Qt Shader Tools Module
-        run: |
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} gcc_64 -m qtshadertools -O $HOME/Qt
-        continue-on-error: true
+      - name: Install Qt 6.10.0 (Official Action)
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.10.0'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          dir: '${{ runner.temp }}/Qt'
+          install-deps: 'true'
+          modules: 'qtmultimedia qt5compat qtshadertools'
+          cache: 'true'
 
       - name: Set Qt Environment Variables
         run: |
-          echo "${{ env.QT_ROOT }}/bin" >> $GITHUB_PATH
-          echo "CMAKE_PREFIX_PATH=${{ env.QT_ROOT }}" >> $GITHUB_ENV
-          echo "Qt6_DIR=${{ env.QT_ROOT }}/lib/cmake/Qt6" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=${{ env.QT_ROOT }}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "QT_PLUGIN_PATH=${{ env.QT_ROOT }}/plugins" >> $GITHUB_ENV
-          echo "QML2_IMPORT_PATH=${{ env.QT_ROOT }}/qml" >> $GITHUB_ENV
+          echo "${{ runner.temp }}/Qt/6.10.0/gcc_64/bin" >> $GITHUB_PATH
+          echo "CMAKE_PREFIX_PATH=${{ runner.temp }}/Qt/6.10.0/gcc_64" >> $GITHUB_ENV
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "QT_PLUGIN_PATH=${{ runner.temp }}/Qt/6.10.0/gcc_64/plugins" >> $GITHUB_ENV
+          echo "QML2_IMPORT_PATH=${{ runner.temp }}/Qt/6.10.0/gcc_64/qml" >> $GITHUB_ENV
+          echo "QT_ROOT=${{ runner.temp }}/Qt/6.10.0/gcc_64" >> $GITHUB_ENV
 
       - name: Verify Qt Installation
         run: |
           echo "==== Qt Installation Verification ===="
-          echo "Qt Root: ${{ env.QT_ROOT }}"
+          echo "Qt Root: ${{ runner.temp }}/Qt/6.10.0/gcc_64"
           echo ""
-          qmake --version
+          if [ -f "${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" ]; then
+            ${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake --version
+          else
+            echo "qmake not found, checking directory structure..."
+            ls -la ${{ runner.temp }}/Qt/ || echo "Qt directory not found"
+            find ${{ runner.temp }}/Qt -name "qmake" -type f 2>/dev/null || echo "qmake not found anywhere"
+          fi
           echo ""
           echo "GCC version:"
           gcc --version
